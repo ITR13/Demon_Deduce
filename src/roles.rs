@@ -4,14 +4,34 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Role {
+    // Villager
     Confessor,
+    Gemcrafter,
+    // Evil
     Minion,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Alignment {
+    Villager,
+    Evil,
+}
+
+impl Role {
+    pub const fn alignment(self) -> Alignment {
+        use Role::*;
+        match self {
+            Confessor | Gemcrafter => Alignment::Villager,
+            Minion => Alignment::Evil,
+        }
+    }
 }
 
 impl fmt::Display for Role {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Role::Confessor => write!(f, "Confessor"),
+            Role::Gemcrafter => write!(f, "Gemcrafter"),
             Role::Minion => write!(f, "Minion"),
         }
     }
@@ -95,8 +115,7 @@ impl RoleStatement for ConfessorStatement {
     }
 }
 
-/// Example of a more general claim statement (useful later):
-/// e.g. "Player 1 is Evil" or "Player 2 is Good".
+// Gemcrafter statement
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClaimStatement {
     pub target_index: usize,
@@ -124,23 +143,60 @@ impl RoleStatement for ClaimStatement {
     }
 }
 
-/// Produce the typed statement a card would make given:
+
+/// Produce the typed statements a card can make given:
 /// - `true_role`: the role it really is from the deck
-/// - `visible_role`: what role is shown (may be a disguise)
-///
-/// v0.1 minimal rules implemented:
-/// - True Confessor -> ConfessorStatement::IAmGood
-/// - True Minion disguised as Confessor -> ConfessorStatement::IAmDizzy (lying counterpart)
-/// - Other combinations produce a simple ClaimStatement or silent behavior (kept minimal here).
-pub fn produce_statement(true_role: Role, visible_role: Role, _position: usize) -> Box<dyn RoleStatement> {
+/// - `visible_role`: what role is shown (may be a disguise, or unrevealed)
+/// - `true_roles`: the true roles of all the cards in play
+/// - `_position`: the index of the speaking card
+pub fn produce_statements(
+    true_role: Role,
+    visible_role: Option<Role>,
+    true_roles: &[Role],
+    _position: usize
+) -> Vec<Box<dyn RoleStatement>> {
+    // If the card is unrevealed, we don't produce any info beyond UnrevealedStatement
+    if visible_role.is_none() {
+        return vec![Box::new(UnrevealedStatement)];
+    }
+
     match true_role {
-        Role::Confessor => Box::new(ConfessorStatement::IAmGood),
-        Role::Minion => match visible_role {
-            Role::Confessor => Box::new(ConfessorStatement::IAmDizzy),
-            _ => Box::new(ClaimStatement {
-                target_index: 0,
-                claims_evil: true,
-            }),
+        Role::Confessor => vec![Box::new(ConfessorStatement::IAmGood)],
+        Role::Gemcrafter => {
+            // Claim all villagers are good
+            true_roles
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| r.alignment() == Alignment::Villager)
+                .map(|(idx, _)| {
+                    Box::new(ClaimStatement {
+                        target_index: idx,
+                        claims_evil: false,
+                    }) as Box<dyn RoleStatement>
+                })
+                .collect()
+        }
+
+        Role::Minion => match visible_role.unwrap() {
+            Role::Confessor => vec![Box::new(ConfessorStatement::IAmDizzy)],
+            Role::Gemcrafter => {
+                // Claim all evil players are good
+                true_roles
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, r)| r.alignment() == Alignment::Evil)
+                    .map(|(idx, _)| {
+                        Box::new(ClaimStatement {
+                            target_index: idx,
+                            claims_evil: false,
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect()
+            }
+            other => panic!(
+                "produce_statements: unsupported role combination: true={:?}, visible={:?}",
+                true_role, other
+            ),
         },
     }
 }
@@ -151,14 +207,14 @@ mod tests {
 
     #[test]
     fn confessor_says_good() {
-        let s = produce_statement(Role::Confessor, Role::Confessor, 0);
-        assert!(s.equals(&ConfessorStatement::IAmGood));
+        let s = produce_statements(Role::Confessor, Some(Role::Confessor), &[], 0);
+        assert!(s[0].equals(&ConfessorStatement::IAmGood));
     }
 
     #[test]
     fn minion_disguised_says_dizzy() {
-        let s = produce_statement(Role::Minion, Role::Confessor, 0);
-        assert!(s.equals(&ConfessorStatement::IAmDizzy));
+        let s = produce_statements(Role::Minion, Some(Role::Confessor), &[], 0);
+        assert!(s[0].equals(&ConfessorStatement::IAmDizzy));
     }
 
     #[test]

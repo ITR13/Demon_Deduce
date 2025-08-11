@@ -1,5 +1,5 @@
 // src/solver.rs
-use crate::roles::{produce_statement, Role, RoleStatement};
+use crate::roles::{produce_statements, Role, Alignment, RoleStatement};
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::option::Option;
@@ -35,13 +35,18 @@ pub fn brute_force_solve(
         }
 
         // For each true_role position, determine disguise choices:
-        // - If true_role == Minion => disguise may be any role present in deck (unique).
+        // - If true_role == Minion => disguise may be any non-evil role present in deck.
         // - Else: disguise == true_role.
         let disguise_choices: Vec<Vec<Role>> = candidate
             .iter()
             .map(|&r| {
                 if r == Role::Minion {
-                    deck.iter().copied().unique().collect()
+                    deck
+                        .iter()
+                        .copied()
+                        .unique()
+                        .filter(|role| role.alignment() != Alignment::Evil)
+                        .collect()
                 } else {
                     vec![r]
                 }
@@ -59,18 +64,18 @@ pub fn brute_force_solve(
                 continue;
             }
 
-            // Simulate typed statements
-            let simulated: Vec<Box<dyn RoleStatement>> = candidate
-                .iter()
-                .zip(disguise_assign.iter())
-                .enumerate()
-                .map(|(idx, (&true_role, &vis_role))| produce_statement(true_role, vis_role, idx))
-                .collect();
-
-            // Compare simulated -> observed using typed equals
             let mut all_eq = true;
-            for (sim, obs) in simulated.iter().zip(observed_statements.iter()) {
-                if !obs.equals(sim.as_ref()) {
+            for (idx, (&true_role, &vis_role)) in candidate.iter().zip(disguise_assign.iter()).enumerate() {
+                // produce_statements likely returns Vec<Box<dyn RoleStatement>>
+                let possible_statements = produce_statements(true_role, Some(vis_role), &candidate, idx);
+
+                let obs = &observed_statements[idx];
+
+                // Check if any of the possible statements match the observed
+                if !possible_statements
+                    .iter()
+                    .any(|ps| obs.equals(ps.as_ref()))
+                {
                     all_eq = false;
                     break;
                 }

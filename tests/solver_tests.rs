@@ -130,11 +130,11 @@ fn test_iam_good_iam_good_unrevealed() {
 
 #[test]
 fn test_iam_good_claim_1_is_good_unrevealed() {
-    let deck = vec![Role::Confessor, Role::Confessor, Role::Minion];
+    let deck = vec![Role::Confessor, Role::Gemcrafter, Role::Minion];
 
     let visible = vec![
         Some(Role::Confessor),
-        Some(Role::Confessor),
+        Some(Role::Gemcrafter),
         None,
     ];
 
