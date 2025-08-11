@@ -7,6 +7,7 @@ pub enum Role {
     // Villager
     Confessor,
     Gemcrafter,
+    Lover,
     // Evil
     Minion,
 }
@@ -21,7 +22,7 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Gemcrafter => Alignment::Villager,
+            Confessor | Gemcrafter | Lover => Alignment::Villager,
             Minion => Alignment::Evil,
         }
     }
@@ -31,6 +32,7 @@ impl fmt::Display for Role {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Role::Confessor => write!(f, "Confessor"),
+            Role::Lover => write!(f, "Lover"),
             Role::Gemcrafter => write!(f, "Gemcrafter"),
             Role::Minion => write!(f, "Minion"),
         }
@@ -143,6 +145,54 @@ impl RoleStatement for ClaimStatement {
     }
 }
 
+// Lover and Queen statement
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvilCountStatement {
+    pub target_indexes: Vec<usize>,
+    pub evil_count: usize, // How many evil are there among the above listed
+}
+impl EvilCountStatement {
+    fn unordered_indexes_eq(&self, other: &Self) -> bool {
+        let mut self_sorted = self.target_indexes.clone();
+        let mut other_sorted = other.target_indexes.clone();
+
+        self_sorted.sort_unstable();
+        other_sorted.sort_unstable();
+
+        self_sorted == other_sorted
+    }
+}
+impl fmt::Display for EvilCountStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Among {:#?} there are {} Evil", self.target_indexes, self.evil_count)
+    }
+}
+impl RoleStatement for EvilCountStatement {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn equals(&self, other: &dyn RoleStatement) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<EvilCountStatement>()
+            .map(|o| self.unordered_indexes_eq(o) && self.evil_count == o.evil_count)
+            .unwrap_or(false)
+    }
+}
+
+fn neighbor_indexes(len: usize, position: usize, offset: usize) -> Vec<usize> {
+    vec![
+        (position + len - offset) % len,
+        (position + offset) % len,
+    ]
+}
+
+fn count_neighbor_evil(true_roles: &[Role], position: usize) -> usize {
+    neighbor_indexes(true_roles.len(), position, 1)
+        .iter()
+        .filter(|&&i| true_roles[i].alignment() == Alignment::Evil)
+        .count()
+}
 
 /// Produce the typed statements a card can make given:
 /// - `true_role`: the role it really is from the deck
@@ -175,7 +225,15 @@ pub fn produce_statements(
                     }) as Box<dyn RoleStatement>
                 })
                 .collect()
-        }
+        },
+
+        Role::Lover => {
+            let evil_count = count_neighbor_evil(true_roles, _position);
+            vec![Box::new(EvilCountStatement {
+                target_indexes: neighbor_indexes(true_roles.len(), _position, 1),
+                evil_count,
+            })]
+        },
 
         Role::Minion => match visible_role.unwrap() {
             Role::Confessor => vec![Box::new(ConfessorStatement::IAmDizzy)],
@@ -192,7 +250,25 @@ pub fn produce_statements(
                         }) as Box<dyn RoleStatement>
                     })
                     .collect()
-            }
+            },
+            Role::Lover => {
+                let neighbors = neighbor_indexes(true_roles.len(), _position, 1);
+
+                let real_evil_count = neighbors
+                    .iter()
+                    .filter(|&&idx| true_roles[idx].alignment() == Alignment::Evil)
+                    .count();
+
+                (0..=2)
+                    .filter(|&fake_count| fake_count != real_evil_count)
+                    .map(|fake_count| {
+                        Box::new(EvilCountStatement {
+                            target_indexes: neighbors.clone(),
+                            evil_count: fake_count,
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect()
+            },
             other => panic!(
                 "produce_statements: unsupported role combination: true={:?}, visible={:?}",
                 true_role, other
