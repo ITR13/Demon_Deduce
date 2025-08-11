@@ -1,0 +1,149 @@
+// src/solver.rs
+use crate::roles::{produce_statement, Role, RoleStatement};
+use itertools::Itertools;
+use std::collections::HashSet;
+
+/// Brute-force solver that uses typed statements per role.
+///
+/// - `deck`: roles available in the deck (e.g., [Confessor, Confessor, Minion])
+/// - `visible_roles`: what each played card shows (fixed)
+/// - `observed_statements`: typed statements observed from each played card (fixed)
+///
+/// Returns: Vec of valid permutations (Vec<Role> true roles assigned to positions)
+pub fn brute_force_solve(
+    deck: &[Role],
+    visible_roles: &[Role],
+    observed_statements: &[Box<dyn RoleStatement>],
+) -> Vec<Vec<Role>> {
+    assert_eq!(
+        visible_roles.len(),
+        observed_statements.len(),
+        "visible_roles and observed_statements must match"
+    );
+    let n = visible_roles.len();
+    assert_eq!(deck.len(), n, "v0.1 assumes deck size == played size");
+
+    let mut valid: Vec<Vec<Role>> = Vec::new();
+    let mut seen = HashSet::new();
+
+    for perm in deck.iter().permutations(n) {
+        let candidate: Vec<Role> = perm.into_iter().copied().collect();
+
+        if !seen.insert(candidate.clone()) {
+            continue;
+        }
+
+        // For each true_role position, determine disguise choices:
+        // - If true_role == Minion => disguise may be any role present in deck (unique).
+        // - Else: disguise == true_role.
+        let disguise_choices: Vec<Vec<Role>> = candidate
+            .iter()
+            .map(|&r| {
+                if r == Role::Minion {
+                    deck.iter().copied().unique().collect()
+                } else {
+                    vec![r]
+                }
+            })
+            .collect();
+
+        // iterate cartesian product of disguise assignments
+        for disguise_assign in cartesian(&disguise_choices) {
+            // Check visible role match
+            let visible_ok = disguise_assign
+                .iter()
+                .zip(visible_roles.iter())
+                .all(|(d, v)| d == v);
+            if !visible_ok {
+                continue;
+            }
+
+            // Simulate typed statements
+            let simulated: Vec<Box<dyn RoleStatement>> = candidate
+                .iter()
+                .zip(disguise_assign.iter())
+                .enumerate()
+                .map(|(idx, (&true_role, &vis_role))| produce_statement(true_role, vis_role, idx))
+                .collect();
+
+            // Compare simulated -> observed using typed equals
+            let mut all_eq = true;
+            for (sim, obs) in simulated.iter().zip(observed_statements.iter()) {
+                if !sim.equals(obs.as_ref()) {
+                    all_eq = false;
+                    break;
+                }
+            }
+            if all_eq {
+                valid.push(candidate.clone());
+                break; // one disguise match is enough for this candidate
+            }
+        }
+    }
+
+    valid
+}
+
+/// Small cartesian product collector (fine for v0.1 small sizes).
+fn cartesian<T: Clone>(choices: &[Vec<T>]) -> Vec<Vec<T>> {
+    if choices.is_empty() {
+        return vec![vec![]];
+    }
+    let mut acc: Vec<Vec<T>> = vec![vec![]];
+    for opts in choices {
+        let mut next = Vec::new();
+        for prefix in &acc {
+            for item in opts {
+                let mut p = prefix.clone();
+                p.push(item.clone());
+                next.push(p);
+            }
+        }
+        acc = next;
+    }
+    acc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::roles::{ConfessorStatement, Role, ClaimStatement};
+
+    #[test]
+    fn example_minion_disguised_as_confessor() {
+        let deck = vec![Role::Confessor, Role::Confessor, Role::Minion];
+        let visible = vec![Role::Confessor, Role::Confessor, Role::Confessor];
+
+        // Observed typed statements:
+        let observed: Vec<Box<dyn RoleStatement>> = vec![
+            Box::new(ConfessorStatement::IAmGood),
+            Box::new(ConfessorStatement::IAmGood),
+            Box::new(ConfessorStatement::IAmDizzy),
+        ];
+
+        let sols = brute_force_solve(&deck, &visible, &observed);
+        assert_eq!(sols.len(), 1);
+        let sol = &sols[0];
+        assert_eq!(sol[0], Role::Confessor);
+        assert_eq!(sol[1], Role::Confessor);
+        assert_eq!(sol[2], Role::Minion);
+    }
+
+    #[test]
+    fn example_with_claim_statement() {
+        // Showcase that ClaimStatement can be used as observed too
+        let deck = vec![Role::Confessor, Role::Minion, Role::Confessor];
+        // Suppose visible roles and observed statements will be set accordingly...
+        // This test is just to ensure ClaimStatement can be handled by the solver pipeline.
+        let visible = vec![Role::Confessor, Role::Confessor, Role::Confessor];
+
+        let observed: Vec<Box<dyn RoleStatement>> = vec![
+            Box::new(ConfessorStatement::IAmGood),
+            Box::new(ClaimStatement { target_index: 0, claims_evil: true }),
+            Box::new(ConfessorStatement::IAmDizzy),
+        ];
+
+        let _ = brute_force_solve(&deck, &visible, &observed);
+        // no assertion, this is only to ensure compilation and runtime behavior
+    }
+}
