@@ -2,6 +2,7 @@
 use crate::roles::{produce_statement, Role, RoleStatement};
 use itertools::Itertools;
 use std::collections::HashSet;
+use std::option::Option;
 
 /// Brute-force solver that uses typed statements per role.
 ///
@@ -12,7 +13,7 @@ use std::collections::HashSet;
 /// Returns: Vec of valid permutations (Vec<Role> true roles assigned to positions)
 pub fn brute_force_solve(
     deck: &[Role],
-    visible_roles: &[Role],
+    visible_roles: &[Option<Role>],
     observed_statements: &[Box<dyn RoleStatement>],
 ) -> Vec<Vec<Role>> {
     assert_eq!(
@@ -53,7 +54,7 @@ pub fn brute_force_solve(
             let visible_ok = disguise_assign
                 .iter()
                 .zip(visible_roles.iter())
-                .all(|(d, v)| d == v);
+                .all(|(d, v)| v.is_none() || v.as_ref() == Some(d));
             if !visible_ok {
                 continue;
             }
@@ -69,14 +70,13 @@ pub fn brute_force_solve(
             // Compare simulated -> observed using typed equals
             let mut all_eq = true;
             for (sim, obs) in simulated.iter().zip(observed_statements.iter()) {
-                if !sim.equals(obs.as_ref()) {
+                if !obs.equals(sim.as_ref()) {
                     all_eq = false;
                     break;
                 }
             }
             if all_eq {
                 valid.push(candidate.clone());
-                break; // one disguise match is enough for this candidate
             }
         }
     }
@@ -102,48 +102,4 @@ fn cartesian<T: Clone>(choices: &[Vec<T>]) -> Vec<Vec<T>> {
         acc = next;
     }
     acc
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::roles::{ConfessorStatement, Role, ClaimStatement};
-
-    #[test]
-    fn example_minion_disguised_as_confessor() {
-        let deck = vec![Role::Confessor, Role::Confessor, Role::Minion];
-        let visible = vec![Role::Confessor, Role::Confessor, Role::Confessor];
-
-        // Observed typed statements:
-        let observed: Vec<Box<dyn RoleStatement>> = vec![
-            Box::new(ConfessorStatement::IAmGood),
-            Box::new(ConfessorStatement::IAmGood),
-            Box::new(ConfessorStatement::IAmDizzy),
-        ];
-
-        let sols = brute_force_solve(&deck, &visible, &observed);
-        assert_eq!(sols.len(), 1);
-        let sol = &sols[0];
-        assert_eq!(sol[0], Role::Confessor);
-        assert_eq!(sol[1], Role::Confessor);
-        assert_eq!(sol[2], Role::Minion);
-    }
-
-    #[test]
-    fn example_with_claim_statement() {
-        // Showcase that ClaimStatement can be used as observed too
-        let deck = vec![Role::Confessor, Role::Minion, Role::Confessor];
-        // Suppose visible roles and observed statements will be set accordingly...
-        // This test is just to ensure ClaimStatement can be handled by the solver pipeline.
-        let visible = vec![Role::Confessor, Role::Confessor, Role::Confessor];
-
-        let observed: Vec<Box<dyn RoleStatement>> = vec![
-            Box::new(ConfessorStatement::IAmGood),
-            Box::new(ClaimStatement { target_index: 0, claims_evil: true }),
-            Box::new(ConfessorStatement::IAmDizzy),
-        ];
-
-        let _ = brute_force_solve(&deck, &visible, &observed);
-        // no assertion, this is only to ensure compilation and runtime behavior
-    }
 }

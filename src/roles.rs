@@ -46,6 +46,28 @@ impl Clone for Box<dyn RoleStatement> {
     }
 }
 
+/// Cards not yet revealed have no statement
+#[derive(Debug, Clone)]
+pub struct UnrevealedStatement;
+
+impl fmt::Display for UnrevealedStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Unrevealed")
+    }
+}
+
+impl RoleStatement for UnrevealedStatement {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    /// Always true - matches any statement
+    fn equals(&self, _other: &dyn RoleStatement) -> bool {
+        true
+    }
+}
+
+
 /// Confessor's statement types.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfessorStatement {
