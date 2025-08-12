@@ -29,6 +29,13 @@ impl Role {
             Minion => Alignment::Evil,
         }
     }
+    pub const fn lying(self) -> bool {
+        use Role::*;
+        match self {
+            Confessor | Gemcrafter | Hunter | Lover | Queen => false,
+            Minion => true,
+        }
+    }
 }
 
 impl fmt::Display for Role {
@@ -218,68 +225,8 @@ pub fn produce_statements(
         return vec![Box::new(UnrevealedStatement)];
     }
 
-    match true_role {
-        Role::Confessor => vec![Box::new(ConfessorStatement::IAmGood)],
-        Role::Gemcrafter => {
-            // Claim all villagers are good
-            true_roles
-                .iter()
-                .enumerate()
-                .filter(|(_, r)| r.alignment() == Alignment::Villager)
-                .map(|(idx, _)| {
-                    Box::new(ClaimStatement {
-                        target_index: idx,
-                        claims_evil: false,
-                    }) as Box<dyn RoleStatement>
-                })
-                .collect()
-        },
-        Role::Lover => {
-            let evil_count = count_neighbor_evil(true_roles, _position, 1);
-            vec![Box::new(EvilCountStatement {
-                target_indexes: neighbor_indexes(true_roles.len(), _position, 1),
-                evil_count: evil_count,
-                minimum: false,
-                none_closer: false,
-            })]
-        },
-        Role::Hunter => {
-            let max_index = (true_roles.len() + 1) / 2;
-            let index = (1..=max_index)
-                .find(|&i| count_neighbor_evil(true_roles, _position, i) > 0)
-                .unwrap_or(1);
-
-            vec![Box::new(EvilCountStatement {
-                target_indexes: neighbor_indexes(true_roles.len(), _position, index),
-                evil_count: 1,
-                minimum: true,
-                none_closer: true,
-            })]
-        },
-        Role::Queen => {
-            let (evil, good): (Vec<_>, Vec<_>) = true_roles
-                .iter()
-                .enumerate()
-                .partition(|(_, r)| r.alignment() == Alignment::Evil);
-
-            evil.iter()
-                .flat_map(|(ei, _)| {
-                    good.iter()
-                        .combinations(2)
-                        .map(move |pair| {
-                            let target_indexes = vec![*ei, pair[0].0, pair[1].0];
-                            Box::new(EvilCountStatement {
-                                target_indexes: target_indexes,
-                                evil_count: 1,
-                                minimum: false,
-                                none_closer: false,
-                            }) as Box<dyn RoleStatement>
-                        })
-                })
-                .collect()
-        },
-
-        Role::Minion => match visible_role.unwrap() {
+    if true_role.lying() {
+        return match visible_role.unwrap() {
             Role::Confessor => vec![Box::new(ConfessorStatement::IAmDizzy)],
             Role::Gemcrafter => {
                 // Claim all evil players are good
@@ -355,7 +302,73 @@ pub fn produce_statements(
                 "produce_statements: unsupported role combination: true={:?}, visible={:?}",
                 true_role, other
             ),
+        };
+    }
+
+    return match visible_role.unwrap() {
+        Role::Confessor => vec![Box::new(ConfessorStatement::IAmGood)],
+        Role::Gemcrafter => {
+            // Claim all villagers are good
+            true_roles
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| r.alignment() == Alignment::Villager)
+                .map(|(idx, _)| {
+                    Box::new(ClaimStatement {
+                        target_index: idx,
+                        claims_evil: false,
+                    }) as Box<dyn RoleStatement>
+                })
+                .collect()
         },
+        Role::Lover => {
+            let evil_count = count_neighbor_evil(true_roles, _position, 1);
+            vec![Box::new(EvilCountStatement {
+                target_indexes: neighbor_indexes(true_roles.len(), _position, 1),
+                evil_count: evil_count,
+                minimum: false,
+                none_closer: false,
+            })]
+        },
+        Role::Hunter => {
+            let max_index = (true_roles.len() + 1) / 2;
+            let index = (1..=max_index)
+                .find(|&i| count_neighbor_evil(true_roles, _position, i) > 0)
+                .unwrap_or(1);
+
+            vec![Box::new(EvilCountStatement {
+                target_indexes: neighbor_indexes(true_roles.len(), _position, index),
+                evil_count: 1,
+                minimum: true,
+                none_closer: true,
+            })]
+        },
+        Role::Queen => {
+            let (evil, good): (Vec<_>, Vec<_>) = true_roles
+                .iter()
+                .enumerate()
+                .partition(|(_, r)| r.alignment() == Alignment::Evil);
+
+            evil.iter()
+                .flat_map(|(ei, _)| {
+                    good.iter()
+                        .combinations(2)
+                        .map(move |pair| {
+                            let target_indexes = vec![*ei, pair[0].0, pair[1].0];
+                            Box::new(EvilCountStatement {
+                                target_indexes: target_indexes,
+                                evil_count: 1,
+                                minimum: false,
+                                none_closer: false,
+                            }) as Box<dyn RoleStatement>
+                        })
+                })
+                .collect()
+        },
+        other => panic!(
+            "produce_statements: unsupported role combination: true={:?}, visible={:?}",
+            true_role, other
+        ),
     }
 }
 
