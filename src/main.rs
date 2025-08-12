@@ -13,7 +13,7 @@ fn main() {
         Box::new(UnrevealedStatement),
     ];
 
-    let sols = brute_force_solve(&deck, &visible, &observed, 5, 1);
+    let sols = brute_force_solve(&deck, &visible, &observed, 5, 0, 1);
     println!("Found {} solution(s)", sols.len());
     for s in sols {
         println!("{:?}", s);

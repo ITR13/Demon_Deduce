@@ -11,29 +11,46 @@ pub enum Role {
     Hunter,
     Judge,
     Lover,
-    Queen,
+    Empress,
+    // Outcast
+    Wretch,
     // Evil
     Minion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Alignment {
+pub enum Group {
     Villager,
+    Outcast,
+    Minion,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Alignment {
+    Good,
     Evil,
 }
 
 impl Role {
+    pub const fn group(self) -> Group {
+        use Role::*;
+        match self {
+            Confessor | Gemcrafter | Hunter | Lover | Empress | Judge | Enlightened => Group::Villager,
+            Wretch => Group::Outcast,
+            Minion => Group::Minion,
+        }
+    }
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Queen | Judge | Enlightened=> Alignment::Villager,
+            Confessor | Gemcrafter | Hunter | Lover | Empress | Judge | Enlightened | Wretch => Alignment::Good,
             Minion => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Queen | Judge | Enlightened => false,
+            Confessor | Gemcrafter | Hunter | Lover | Empress | Judge | Enlightened | Wretch => false,
             Minion => true,
         }
     }
@@ -48,7 +65,8 @@ impl fmt::Display for Role {
             Role::Hunter => write!(f, "Hunter"),
             Role::Judge => write!(f, "Judge"),
             Role::Lover => write!(f, "Lover"),
-            Role::Queen => write!(f, "Queen"),
+            Role::Empress => write!(f, "Empress"),
+            Role::Wretch => write!(f, "Wretch"),
             Role::Minion => write!(f, "Minion"),
         }
     }
@@ -170,7 +188,7 @@ impl RoleStatement for ClaimStatement {
     }
 }
 
-// Lover, Queen, and Hunter statement
+// Lover, Empress, and Hunter statement
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvilCountStatement {
     pub target_indexes: Vec<usize>,
@@ -379,7 +397,7 @@ pub fn produce_statements(
                     })
                     .collect()
             },
-            Role::Queen => {
+            Role::Empress => {
                 let good = true_roles
                     .iter()
                     .enumerate()
@@ -412,7 +430,7 @@ pub fn produce_statements(
             true_roles
                 .iter()
                 .enumerate()
-                .filter(|(_, r)| r.alignment() == Alignment::Villager)
+                .filter(|(_, r)| r.alignment() == Alignment::Good)
                 .map(|(idx, _)| {
                     Box::new(ClaimStatement {
                         target_index: idx,
@@ -459,7 +477,7 @@ pub fn produce_statements(
                 none_closer: false,
             })]
         },
-        Role::Queen => {
+        Role::Empress => {
             let (evil, good): (Vec<_>, Vec<_>) = true_roles
                 .iter()
                 .enumerate()
@@ -481,6 +499,7 @@ pub fn produce_statements(
                 })
                 .collect()
         },
+        Role::Wretch => vec![Box::new(UnrevealedStatement)],
         other => panic!(
             "produce_statements: unsupported role combination: true={:?}, visible={:?}",
             true_role, other

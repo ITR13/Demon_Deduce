@@ -1,4 +1,4 @@
-use crate::roles::{produce_statements, Role, Alignment, RoleStatement};
+use crate::roles::*;
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::option::Option;
@@ -15,7 +15,8 @@ pub fn brute_force_solve(
     visible_roles: &[Option<Role>],
     observed_statements: &[Box<dyn RoleStatement>],
     villagers: usize,
-    evil: usize,
+    outcasts: usize,
+    minions: usize,
 ) -> Vec<Vec<Role>> {
     assert_eq!(
         visible_roles.len(),
@@ -27,76 +28,105 @@ pub fn brute_force_solve(
     let mut valid: Vec<Vec<Role>> = Vec::new();
     let mut seen = HashSet::new();
 
-    let (villager_roles, evil_roles): (Vec<_>, Vec<_>) = deck
+    let (villager_roles, non_villagers): (Vec<Role>, Vec<Role>) = deck
         .iter()
-        .partition(|role| role.alignment() == Alignment::Villager);
-    let villager_combos = villager_roles.iter().combinations(villagers);
-    let evil_combos = evil_roles.iter().combinations(evil);
+        .partition(|role| role.group() == Group::Villager);
 
-    for v_combo in villager_combos {
-        for e_combo in evil_combos.clone() {
-            let combined: Vec<Role> = v_combo
-                .iter()
-                .chain(e_combo.iter())
-                .copied()
-                .cloned()
-                .collect();
+    let (outcast_roles, minion_roles): (Vec<Role>, Vec<Role>) = non_villagers
+        .into_iter()
+        .partition(|role| role.group() == Group::Outcast);
+    let villager_combos: Vec<_> = villager_roles.iter().combinations(villagers).collect();
+    let outcast_combos: Vec<_> = outcast_roles.iter().combinations(outcasts).collect();
+    let minion_combos: Vec<_> = minion_roles.iter().combinations(minions).collect();
 
-            for perm in combined.iter().permutations(n) {
-                let candidate: Vec<Role> = perm.into_iter().copied().collect();
-
-                if !seen.insert(candidate.clone()) {
-                    continue;
-                }
-
-                // For each true_role position, determine disguise choices:
-                // - If true_role == Minion => disguise may be any non-evil role present in deck.
-                // - Else: disguise == true_role.
-                let disguise_choices: Vec<Vec<Role>> = candidate
+    for v_combo in &villager_combos {
+        for m_combo in &minion_combos {
+            for o_combo in &outcast_combos {
+                let combined: Vec<Role> = v_combo
                     .iter()
-                    .map(|&r| {
-                        if r == Role::Minion {
-                            deck
-                                .iter()
-                                .copied()
-                                .unique()
-                                .filter(|role| role.alignment() != Alignment::Evil)
-                                .collect()
-                        } else {
-                            vec![r]
-                        }
-                    })
+                    .chain(m_combo.iter())
+                    .chain(o_combo.iter())
+                    .map(|&&r| r)
                     .collect();
 
-                // iterate cartesian product of disguise assignments
-                for disguise_assign in cartesian(&disguise_choices) {
-                    // Check visible role match
-                    let visible_ok = disguise_assign
-                        .iter()
-                        .zip(visible_roles.iter())
-                        .all(|(d, v)| v.is_none() || v.as_ref() == Some(d));
-                    if !visible_ok {
+                for perm in combined.iter().permutations(n) {
+                    let candidate: Vec<Role> = perm.into_iter().copied().collect();
+
+                    if !seen.insert(candidate.clone()) {
                         continue;
                     }
 
-                    let mut all_eq = true;
-                    for (idx, (&true_role, &vis_role)) in candidate.iter().zip(disguise_assign.iter()).enumerate() {
-                        // produce_statements likely returns Vec<Box<dyn RoleStatement>>
-                        let possible_statements = produce_statements(true_role, Some(vis_role), &candidate, idx);
+                    // Wretch can fool other roles with their disguise, so it needs to be handled separately from disguises
+                    // - If true_role == Wretch => disguise may be any minion role present in deck.
+                    // - Else: disguise == true_role.
+                    let wretch_disguise_choices: Vec<Vec<Role>> = candidate
+                        .iter()
+                        .map(|&r| {
+                            if r == Role::Wretch {
+                                deck
+                                    .iter()
+                                    .copied()
+                                    .unique()
+                                    .filter(|role| role.group() == Group::Minion)
+                                    .collect()
+                            } else {
+                                vec![r]
+                            }
+                        })
+                        .collect();
 
-                        let obs = &observed_statements[idx];
 
-                        // Check if any of the possible statements match the observed
-                        if !possible_statements
-                            .iter()
-                            .any(|ps| obs.equals(ps.as_ref()))
-                        {
-                            all_eq = false;
-                            break;
+                    // For each true_role position, determine disguise choices:
+                    // - If true_role == Minion => disguise may be any non-evil role present in deck.
+                    // - Else: disguise == true_role.
+                    let disguise_choices: Vec<Vec<Role>> = candidate
+                        .iter()
+                        .map(|&r| {
+                            if r == Role::Minion {
+                                deck
+                                    .iter()
+                                    .copied()
+                                    .unique()
+                                    .filter(|role| role.alignment() != Alignment::Evil)
+                                    .collect()
+                            } else {
+                                vec![r]
+                            }
+                        })
+                        .collect();
+
+                    // iterate cartesian product of disguise assignments
+                    for wretch_disguise_assign in cartesian(&wretch_disguise_choices) {
+                        for disguise_assign in cartesian(&disguise_choices) {
+                            // Check visible role match
+                            let visible_ok = disguise_assign
+                                .iter()
+                                .zip(visible_roles.iter())
+                                .all(|(d, v)| v.is_none() || v.as_ref() == Some(d));
+                            if !visible_ok {
+                                continue;
+                            }
+
+                            let mut all_eq = true;
+                            for (idx, (&true_role, &vis_role)) in candidate.iter().zip(disguise_assign.iter()).enumerate() {
+                                // NB: Using wretch_disguise_assign as true role here, and not above bc we want the card itself to know it's true role, but not other cards
+                                let possible_statements = produce_statements(true_role, Some(vis_role), &wretch_disguise_assign, idx);
+
+                                let obs = &observed_statements[idx];
+
+                                // Check if any of the possible statements match the observed
+                                if !possible_statements
+                                    .iter()
+                                    .any(|ps| obs.equals(ps.as_ref()))
+                                {
+                                    all_eq = false;
+                                    break;
+                                }
+                            }
+                            if all_eq {
+                                valid.push(candidate.clone());
+                            }
                         }
-                    }
-                    if all_eq {
-                        valid.push(candidate.clone());
                     }
                 }
             }

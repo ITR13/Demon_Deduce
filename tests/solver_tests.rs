@@ -15,7 +15,7 @@ fn finds_minion_with_typed_statements() {
         Box::new(ConfessorStatement::IAmGood),
         Box::new(ConfessorStatement::IAmDizzy),
     ];
-    let sols = brute_force_solve(&deck, &visible, &observed, 2, 1);
+    let sols = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
     assert_eq!(sols.len(), 1);
     assert_eq!(sols[0], vec![Role::Confessor, Role::Confessor, Role::Minion]);
 }
@@ -39,7 +39,7 @@ fn example_minion_disguised_as_confessor() {
         Box::new(ConfessorStatement::IAmDizzy),
     ];
 
-    let sols = brute_force_solve(&deck, &visible, &observed, 2, 1);
+    let sols = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
     assert_eq!(sols.len(), 1);
     let sol = &sols[0];
     assert_eq!(sol[0], Role::Confessor);
@@ -62,7 +62,7 @@ fn example_with_claim_statement() {
         Box::new(ConfessorStatement::IAmDizzy),
     ];
 
-    let _ = brute_force_solve(&deck, &visible, &observed, 2, 1);
+    let _ = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn test_iam_good_iam_dizzy_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[1]),
@@ -113,7 +113,7 @@ fn test_iam_good_iam_good_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[2]),
@@ -144,7 +144,7 @@ fn test_iam_good_claim_1_is_good_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[2]),
@@ -180,7 +180,7 @@ fn test_lover_lover_unrevealed_minion_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),
@@ -216,7 +216,7 @@ fn test_lover_lover_unrevealed_unrevealed_minion() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
@@ -250,7 +250,7 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 3, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 3, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
@@ -267,15 +267,15 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
 }
 
 #[test]
-fn test_queen_queen_queen() {
-    let deck = vec![Role::Queen, Role::Queen, Role::Queen, Role::Queen, Role::Minion];
+fn test_Empress_Empress_Empress() {
+    let deck = vec![Role::Empress, Role::Empress, Role::Empress, Role::Empress, Role::Minion];
 
     let visible = vec![
-        Some(Role::Queen),
-        Some(Role::Queen),
-        Some(Role::Queen),
-        Some(Role::Queen),
-        Some(Role::Queen),
+        Some(Role::Empress),
+        Some(Role::Empress),
+        Some(Role::Empress),
+        Some(Role::Empress),
+        Some(Role::Empress),
     ];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
@@ -286,7 +286,7 @@ fn test_queen_queen_queen() {
         Box::new(EvilCountStatement { target_indexes: vec![0, 1, 2], evil_count: 1, minimum: false, none_closer: false}),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
@@ -324,7 +324,7 @@ fn test_hunter_lover() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),
@@ -352,7 +352,36 @@ fn test_enlightened() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 1);
+    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 0, 1);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[4]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
+#[test]
+fn test_wretch() {
+    let deck = vec![Role::Hunter, Role::Empress, Role::Lover, Role::Gemcrafter, Role::Confessor, Role::Wretch, Role::Minion];
+    let visible = vec![Some(Role::Empress), Some(Role::Lover), Some(Role::Confessor), None, Some(Role::Lover), None, Some(Role::Hunter)];
+    let observed: Vec<Box<dyn RoleStatement>> = vec![
+        Box::new(EvilCountStatement { target_indexes: vec![5, 2, 3], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(ConfessorStatement::IAmGood),
+        Box::new(UnrevealedStatement),
+        Box::new(EvilCountStatement { target_indexes: vec![3, 5], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(UnrevealedStatement),
+        Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 1, minimum: true, none_closer: true}),
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 1, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
