@@ -12,13 +12,16 @@ pub enum Role {
     Hunter,
     Jester,
     Judge,
+    Knight,
     Lover,
     Medium,
     // Outcast
     Wretch,
+    Bombardier,
     // Evil
     Minion,
     TwinMinion,
+    Witch,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -38,23 +41,23 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Jester | Judge | Lover | Medium=> Group::Villager,
-            Wretch => Group::Outcast,
-            Minion | TwinMinion => Group::Minion,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium => Group::Villager,
+            Wretch | Bombardier => Group::Outcast,
+            Minion | TwinMinion | Witch => Group::Minion,
         }
     }
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Jester | Judge | Lover | Medium | Wretch => Alignment::Good,
-            Minion | TwinMinion => Alignment::Evil,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch => Alignment::Good,
+            Minion | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Jester | Judge | Lover | Medium | Wretch => false,
-            Minion | TwinMinion => true,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch => false,
+            Minion | TwinMinion | Witch => true,
         }
     }
 }
@@ -69,11 +72,14 @@ impl fmt::Display for Role {
             Role::Hunter => write!(f, "Hunter"),
             Role::Jester => write!(f, "Jester"),
             Role::Judge => write!(f, "Judge"),
+            Role::Knight => write!(f, "Knight"),
             Role::Lover => write!(f, "Lover"),
             Role::Medium => write!(f, "Medium"),
+            Role::Bombardier => write!(f, "Bombardier"),
             Role::Wretch => write!(f, "Wretch"),
             Role::Minion => write!(f, "Minion"),
             Role::TwinMinion => write!(f, "TwinMinion"),
+            Role::Witch => write!(f, "Witch"),
         }
     }
 }
@@ -494,7 +500,7 @@ pub fn produce_statements(
                     })
                     .collect()
             }
-            Role::Wretch => vec![Box::new(UnrevealedStatement)],
+            Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
             other => panic!(
                 "produce_statements: unsupported role combination: true={:?}, visible={:?}",
                 true_role, other
@@ -613,7 +619,7 @@ pub fn produce_statements(
                 })
                 .collect()
         }
-        Role::Wretch => vec![Box::new(UnrevealedStatement)],
+        Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
         other => panic!(
             "produce_statements: unsupported role combination: true={:?}, visible={:?}",
             true_role, other
