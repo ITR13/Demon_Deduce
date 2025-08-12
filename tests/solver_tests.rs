@@ -58,7 +58,7 @@ fn example_with_claim_statement() {
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
-        Box::new(ClaimStatement { target_index: 0, claims_evil: true }),
+        Box::new(ClaimStatement { target_index: 0, claim_type: ClaimType::Evil }),
         Box::new(ConfessorStatement::IAmDizzy),
     ];
 
@@ -140,7 +140,7 @@ fn test_iam_good_claim_1_is_good_unrevealed() {
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
-        Box::new(ClaimStatement { target_index: 0, claims_evil: false }),
+        Box::new(ClaimStatement { target_index: 0, claim_type: ClaimType::Good }),
         Box::new(UnrevealedStatement),
     ];
 

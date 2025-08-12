@@ -9,6 +9,7 @@ pub enum Role {
     Confessor,
     Gemcrafter,
     Hunter,
+    Judge,
     Lover,
     Queen,
     // Evil
@@ -25,14 +26,14 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Queen => Alignment::Villager,
+            Confessor | Gemcrafter | Hunter | Lover | Queen | Judge => Alignment::Villager,
             Minion => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Queen => false,
+            Confessor | Gemcrafter | Hunter | Lover | Queen | Judge => false,
             Minion => true,
         }
     }
@@ -44,6 +45,7 @@ impl fmt::Display for Role {
             Role::Confessor => write!(f, "Confessor"),
             Role::Gemcrafter => write!(f, "Gemcrafter"),
             Role::Hunter => write!(f, "Hunter"),
+            Role::Judge => write!(f, "Judge"),
             Role::Lover => write!(f, "Lover"),
             Role::Queen => write!(f, "Queen"),
             Role::Minion => write!(f, "Minion"),
@@ -129,19 +131,29 @@ impl RoleStatement for ConfessorStatement {
     }
 }
 
-// Gemcrafter statement
+// Gemcrafter & Judge statement
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ClaimType {
+    Good,
+    Evil,
+    Truthy,
+    Lying,
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClaimStatement {
     pub target_index: usize,
-    pub claims_evil: bool, // true => "X is evil", false => "X is good"
+    pub claim_type: ClaimType,
 }
 impl fmt::Display for ClaimStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.claims_evil {
-            write!(f, "Player {} is Evil", self.target_index)
-        } else {
-            write!(f, "Player {} is Good", self.target_index)
-        }
+        let claim_str = match self.claim_type {
+            ClaimType::Good => "Good",
+            ClaimType::Evil => "Evil",
+            ClaimType::Truthy => "Truthy",
+            ClaimType::Lying => "Lying",
+        };
+
+        write!(f, "Player {} is {}", self.target_index, claim_str)
     }
 }
 impl RoleStatement for ClaimStatement {
@@ -237,10 +249,26 @@ pub fn produce_statements(
                     .map(|(idx, _)| {
                         Box::new(ClaimStatement {
                             target_index: idx,
-                            claims_evil: false,
+                            claim_type: ClaimType::Good,
                         }) as Box<dyn RoleStatement>
                     })
                     .collect()
+            },
+            Role::Judge => {
+                // Claim all lying players are truthy, and truthy players are lying
+                let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, r)| {
+                        Box::new(ClaimStatement {
+                            target_index: idx,
+                            claim_type: if r.lying() { ClaimType::Truthy } else { ClaimType::Lying },
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect();
+                statements.push(Box::new(UnrevealedStatement));
+
+                statements
             },
             Role::Hunter => {
                 let max_index = (true_roles.len() + 1) / 2;
@@ -259,6 +287,22 @@ pub fn produce_statements(
                         }) as Box<dyn RoleStatement>
                     })
                     .collect()
+            },
+            Role::Judge => {
+                // Claim all lying players are lying, and truthy players are truthy
+                let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, r)| {
+                        Box::new(ClaimStatement {
+                            target_index: idx,
+                            claim_type: if r.lying() { ClaimType::Lying } else { ClaimType::Truthy},
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect();
+                statements.push(Box::new(UnrevealedStatement));
+
+                statements
             },
             Role::Lover => {
                 let neighbors = neighbor_indexes(true_roles.len(), _position, 1);
@@ -316,7 +360,7 @@ pub fn produce_statements(
                 .map(|(idx, _)| {
                     Box::new(ClaimStatement {
                         target_index: idx,
-                        claims_evil: false,
+                        claim_type: ClaimType::Good,
                     }) as Box<dyn RoleStatement>
                 })
                 .collect()
@@ -390,9 +434,9 @@ mod tests {
 
     #[test]
     fn claim_statement_equality() {
-        let a = ClaimStatement { target_index: 1, claims_evil: true };
-        let b = ClaimStatement { target_index: 1, claims_evil: true };
-        let c = ClaimStatement { target_index: 2, claims_evil: false };
+        let a = ClaimStatement { target_index: 1, claim_type: ClaimType::Evil };
+        let b = ClaimStatement { target_index: 1, claim_type: ClaimType::Evil };
+        let c = ClaimStatement { target_index: 2, claim_type: ClaimType::Good };
         assert!(a.equals(&b));
         assert!(!a.equals(&c));
     }
