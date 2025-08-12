@@ -10,6 +10,7 @@ pub enum Role {
     Enlightened,
     Gemcrafter,
     Hunter,
+    Jester,
     Judge,
     Lover,
     Medium,
@@ -37,7 +38,7 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Lover | Medium | Judge=> Group::Villager,
+            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Jester | Judge | Lover | Medium=> Group::Villager,
             Wretch => Group::Outcast,
             Minion | TwinMinion => Group::Minion,
         }
@@ -45,14 +46,14 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Lover | Medium | Judge | Wretch => Alignment::Good,
+            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Jester | Judge | Lover | Medium | Wretch => Alignment::Good,
             Minion | TwinMinion => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Lover | Medium | Judge | Wretch => false,
+            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Jester | Judge | Lover | Medium | Wretch => false,
             Minion | TwinMinion => true,
         }
     }
@@ -66,6 +67,7 @@ impl fmt::Display for Role {
             Role::Enlightened => write!(f, "Enlightened"),
             Role::Gemcrafter => write!(f, "Gemcrafter"),
             Role::Hunter => write!(f, "Hunter"),
+            Role::Jester => write!(f, "Jester"),
             Role::Judge => write!(f, "Judge"),
             Role::Lover => write!(f, "Lover"),
             Role::Medium => write!(f, "Medium"),
@@ -260,11 +262,18 @@ fn neighbor_indexes(len: usize, position: usize, offset: usize) -> Vec<usize> {
     ]
 }
 
-fn count_neighbor_evil(true_roles: &[Role], position: usize, offset: usize) -> usize {
-    neighbor_indexes(true_roles.len(), position, offset)
-        .iter()
-        .filter(|&&i| true_roles[i].alignment() == Alignment::Evil)
+fn count_evil<'a>(roles: impl IntoIterator<Item = &'a Role>) -> usize {
+    roles.into_iter()
+        .filter(|role| role.alignment() == Alignment::Evil)
         .count()
+}
+
+fn count_neighbor_evil(true_roles: &[Role], position: usize, offset: usize) -> usize {
+    count_evil(
+        neighbor_indexes(true_roles.len(), position, offset)
+            .iter()
+            .map(|&i| &true_roles[i])
+    )
 }
 
 // Enlightened statement
@@ -358,8 +367,8 @@ pub fn produce_statements(
                     .filter(|(_, role)| role.alignment() != Alignment::Evil);
 
                 good.combinations(3)
-                    .map(move |pair| {
-                        let target_indexes = vec![pair[0].0, pair[1].0, pair[2].0];
+                    .map(move |triplet| {
+                        let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
                         Box::new(EvilCountStatement {
                             target_indexes: target_indexes,
                             evil_count: 1,
@@ -405,6 +414,32 @@ pub fn produce_statements(
                             minimum: true,
                             none_closer: true,
                         }) as Box<dyn RoleStatement>
+                    })
+                    .collect()
+            },
+            Role::Jester => {
+                true_roles.iter()
+                    .enumerate()
+                    .combinations(3)
+                    .flat_map(move |triplet| {
+                        let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
+                        let evil_count = count_evil(
+                            target_indexes
+                                .iter()
+                                .map(|&i| &true_roles[i])
+                        );
+
+                        (0..=2)
+                            .filter(|&fake_count| fake_count != evil_count)
+                            .map(|fake_count| {
+                                Box::new(EvilCountStatement {
+                                    target_indexes: target_indexes.clone(),
+                                    evil_count: fake_count,
+                                    minimum: false,
+                                    none_closer: false,
+                                }) as Box<dyn RoleStatement>
+                            })
+                            .collect::<Vec<_>>()
                     })
                     .collect()
             },
@@ -459,6 +494,7 @@ pub fn produce_statements(
                     })
                     .collect()
             }
+            Role::Wretch => vec![Box::new(UnrevealedStatement)],
             other => panic!(
                 "produce_statements: unsupported role combination: true={:?}, visible={:?}",
                 true_role, other
@@ -517,6 +553,26 @@ pub fn produce_statements(
                 minimum: true,
                 none_closer: true,
             })]
+        },
+        Role::Jester => {
+            true_roles.iter()
+                .enumerate()
+                .combinations(3)
+                .map(move |triplet| {
+                    let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
+                    let evil_count = count_evil(
+                        target_indexes
+                            .iter()
+                            .map(|&i| &true_roles[i])
+                    );
+                    Box::new(EvilCountStatement {
+                        target_indexes: target_indexes.clone(),
+                        evil_count: evil_count,
+                        minimum: false,
+                        none_closer: false,
+                    }) as Box<dyn RoleStatement>
+                })
+                .collect::<Vec<_>>()
         },
         Role::Judge => {
             // Claim all lying players are lying, and truthy players are truthy

@@ -431,3 +431,39 @@ fn test_twin_and_medium() {
         solutions
     );
 }
+#[test]
+fn test_jester() {
+    use Role::*;
+    let deck = vec![Gemcrafter, Jester, Empress, Hunter, Lover, Wretch, Minion, TwinMinion];
+    let visible = vec![Some(Jester), None, Some(Lover), None, None, Some(Hunter), Some(Lover), None];
+    let observed: Vec<Box<dyn RoleStatement>> = vec![
+        Box::new(EvilCountStatement{target_indexes: vec![0,2,5], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(UnrevealedStatement),
+        Box::new(EvilCountStatement{target_indexes: vec![1,3], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(UnrevealedStatement),
+        Box::new(UnrevealedStatement),
+        Box::new(EvilCountStatement{target_indexes: vec![1,1], evil_count: 1, minimum: true, none_closer: true}),
+        Box::new(EvilCountStatement{target_indexes: vec![5,7], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(UnrevealedStatement),
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 1, 2);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[5]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+        assert!(
+            is_evil(&solution[6]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
