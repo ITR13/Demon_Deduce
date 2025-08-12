@@ -184,7 +184,7 @@ fn test_lover_lover_unrevealed_minion_unrevealed() {
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),
-            "No matching solution found. Solutions: {:#?}",
+            "Unmatching solution found. Solutions: {:#?}",
             solutions
         );
     }
@@ -220,7 +220,7 @@ fn test_lover_lover_unrevealed_unrevealed_minion() {
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
-            "No matching solution found. Solutions: {:#?}",
+            "Unmatching solution found. Solutions: {:#?}",
             solutions
         );
     }
@@ -254,7 +254,43 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
-            "No matching solution found. Solutions: {:#?}",
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
+
+#[test]
+fn test_queen_queen_queen() {
+    let deck = vec![Role::Queen, Role::Queen, Role::Queen, Role::Queen, Role::Minion];
+
+    let visible = vec![
+        Some(Role::Queen),
+        Some(Role::Queen),
+        Some(Role::Queen),
+        Some(Role::Queen),
+        Some(Role::Queen),
+    ];
+
+    let observed: Vec<Box<dyn RoleStatement>> = vec![
+        Box::new(EvilCountStatement { target_indexes: vec![1, 2, 3], evil_count: 1}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 3, 4], evil_count: 1}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 3, 4], evil_count: 1}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 1, 4], evil_count: 1}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 1, 2], evil_count: 1}),
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &observed);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[0]),
+            "Unmatching solution found. Solutions: {:#?}",
             solutions
         );
     }

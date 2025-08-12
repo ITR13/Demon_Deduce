@@ -1,6 +1,7 @@
 // src/roles.rs
 use std::any::Any;
 use std::fmt;
+use itertools::Itertools;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Role {
@@ -8,6 +9,7 @@ pub enum Role {
     Confessor,
     Gemcrafter,
     Lover,
+    Queen,
     // Evil
     Minion,
 }
@@ -22,7 +24,7 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Lover => Alignment::Villager,
+            Confessor | Gemcrafter | Lover | Queen => Alignment::Villager,
             Minion => Alignment::Evil,
         }
     }
@@ -32,8 +34,9 @@ impl fmt::Display for Role {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Role::Confessor => write!(f, "Confessor"),
-            Role::Lover => write!(f, "Lover"),
             Role::Gemcrafter => write!(f, "Gemcrafter"),
+            Role::Lover => write!(f, "Lover"),
+            Role::Queen => write!(f, "Queen"),
             Role::Minion => write!(f, "Minion"),
         }
     }
@@ -226,13 +229,32 @@ pub fn produce_statements(
                 })
                 .collect()
         },
-
         Role::Lover => {
             let evil_count = count_neighbor_evil(true_roles, _position);
             vec![Box::new(EvilCountStatement {
                 target_indexes: neighbor_indexes(true_roles.len(), _position, 1),
-                evil_count,
+                evil_count: evil_count,
             })]
+        },
+        Role::Queen => {
+            let (evil, good): (Vec<_>, Vec<_>) = true_roles
+                .iter()
+                .enumerate()
+                .partition(|(_, r)| r.alignment() == Alignment::Evil);
+
+            evil.iter()
+                .flat_map(|(ei, _)| {
+                    good.iter()
+                        .combinations(2)
+                        .map(move |pair| {
+                            let target_indexes = vec![*ei, pair[0].0, pair[1].0];
+                            Box::new(EvilCountStatement {
+                                target_indexes: target_indexes,
+                                evil_count: 1,
+                            }) as Box<dyn RoleStatement>
+                        })
+                })
+                .collect()
         },
 
         Role::Minion => match visible_role.unwrap() {
@@ -265,6 +287,22 @@ pub fn produce_statements(
                         Box::new(EvilCountStatement {
                             target_indexes: neighbors.clone(),
                             evil_count: fake_count,
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect()
+            },
+            Role::Queen => {
+                let good = true_roles
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, role)| role.alignment() != Alignment::Evil);
+
+                good.combinations(3)
+                    .map(move |pair| {
+                        let target_indexes = vec![pair[0].0, pair[1].0, pair[2].0];
+                        Box::new(EvilCountStatement {
+                            target_indexes: target_indexes,
+                            evil_count: 1,
                         }) as Box<dyn RoleStatement>
                     })
                     .collect()
