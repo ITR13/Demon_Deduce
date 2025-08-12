@@ -5,14 +5,19 @@ use std::option::Option;
 
 /// Brute-force solver that uses typed statements per role.
 ///
-/// - `deck`: roles available in the deck (e.g., [Confessor, Confessor, Minion])
-/// - `visible_roles`: what each played card shows (fixed)
-/// - `observed_statements`: typed statements observed from each played card (fixed)
+/// - `deck`: roles available in the deck
+/// - `visible_roles`: what each played card shows
+/// - `confirmed_roles`: what roles have been confirmed through death
+/// - `observed_statements`: typed statements observed from each played card
+/// - `villagers`: Amount of villagers in play
+/// - `outcasts`: Amount of outcasts in play
+/// - `minions`: Amount of minions in play
 ///
 /// Returns: Vec of valid permutations (Vec<Role> true roles assigned to positions)
 pub fn brute_force_solve(
     deck: &[Role],
     visible_roles: &[Option<Role>],
+    confirmed_roles: &[Option<Role>],
     observed_statements: &[Box<dyn RoleStatement>],
     villagers: usize,
     outcasts: usize,
@@ -56,6 +61,15 @@ pub fn brute_force_solve(
                         continue;
                     }
 
+                    let confirmed_ok = candidate
+                        .iter()
+                        .zip(confirmed_roles.iter())
+                        .all(|(r, c)| c.is_none() || c.as_ref() == Some(r));
+                    if !confirmed_ok {
+                        continue;
+                    }
+
+
                     // Wretch can fool other roles with their disguise, so it needs to be handled separately from disguises
                     // - If true_role == Wretch => disguise may be any minion role present in deck.
                     // - Else: disguise == true_role.
@@ -98,7 +112,6 @@ pub fn brute_force_solve(
                     // iterate cartesian product of disguise assignments
                     'disguise_loop: for wretch_disguise_assign in cartesian(&wretch_disguise_choices) {
                         for disguise_assign in cartesian(&disguise_choices) {
-                            // Check visible role match
                             let visible_ok = disguise_assign
                                 .iter()
                                 .zip(visible_roles.iter())

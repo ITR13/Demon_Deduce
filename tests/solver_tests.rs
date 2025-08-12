@@ -10,12 +10,13 @@ fn finds_minion_with_typed_statements() {
         Some(Role::Confessor),
         Some(Role::Confessor),
     ];
+    let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
         Box::new(ConfessorStatement::IAmGood),
         Box::new(ConfessorStatement::IAmDizzy),
     ];
-    let sols = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
+    let sols = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1);
     assert_eq!(sols.len(), 1);
     assert_eq!(sols[0], vec![Role::Confessor, Role::Confessor, Role::Minion]);
 }
@@ -32,6 +33,7 @@ fn example_minion_disguised_as_confessor() {
         Some(Role::Confessor),
         Some(Role::Confessor),
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
@@ -39,7 +41,7 @@ fn example_minion_disguised_as_confessor() {
         Box::new(ConfessorStatement::IAmDizzy),
     ];
 
-    let sols = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
+    let sols = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1);
     assert_eq!(sols.len(), 1);
     let sol = &sols[0];
     assert_eq!(sol[0], Role::Confessor);
@@ -55,6 +57,7 @@ fn example_with_claim_statement() {
         Some(Role::Confessor),
         Some(Role::Confessor),
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
@@ -62,7 +65,7 @@ fn example_with_claim_statement() {
         Box::new(ConfessorStatement::IAmDizzy),
     ];
 
-    let _ = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
+    let _ = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1);
 }
 
 #[test]
@@ -75,6 +78,7 @@ fn test_iam_good_iam_dizzy_unrevealed() {
         Some(Role::Confessor),
         None,
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
@@ -82,7 +86,7 @@ fn test_iam_good_iam_dizzy_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[1]),
@@ -106,6 +110,7 @@ fn test_iam_good_iam_good_unrevealed() {
         Some(Role::Confessor),
         None,
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
@@ -113,7 +118,7 @@ fn test_iam_good_iam_good_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[2]),
@@ -137,6 +142,7 @@ fn test_iam_good_claim_1_is_good_unrevealed() {
         Some(Role::Gemcrafter),
         None,
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
@@ -144,7 +150,7 @@ fn test_iam_good_claim_1_is_good_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 2, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[2]),
@@ -171,6 +177,7 @@ fn test_lover_lover_unrevealed_minion_unrevealed() {
         None,
         None,
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 0, minimum: false, none_closer: false}),
@@ -180,7 +187,7 @@ fn test_lover_lover_unrevealed_minion_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),
@@ -207,6 +214,7 @@ fn test_lover_lover_unrevealed_unrevealed_minion() {
         None,
         None,
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 1, minimum: false, none_closer: false}),
@@ -216,7 +224,7 @@ fn test_lover_lover_unrevealed_unrevealed_minion() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
@@ -242,6 +250,7 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
         Some(Role::Lover),
         None,
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(EvilCountStatement { target_indexes: vec![1, 3], evil_count: 1, minimum: false, none_closer: false}),
@@ -250,7 +259,7 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 3, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 3, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
@@ -277,6 +286,7 @@ fn test_empress_empress_empress() {
         Some(Role::Empress),
         Some(Role::Empress),
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(EvilCountStatement { target_indexes: vec![1, 2, 3], evil_count: 1, minimum: false, none_closer: false}),
@@ -286,7 +296,7 @@ fn test_empress_empress_empress() {
         Box::new(EvilCountStatement { target_indexes: vec![0, 1, 2], evil_count: 1, minimum: false, none_closer: false}),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
@@ -314,6 +324,7 @@ fn test_hunter_lover() {
         None,
         None,
     ];
+    let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(EvilCountStatement { target_indexes: vec![3, 3], evil_count: 1, minimum: true, none_closer: true}),
@@ -324,7 +335,7 @@ fn test_hunter_lover() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),
@@ -343,6 +354,7 @@ fn test_hunter_lover() {
 fn test_enlightened() {
     let deck = vec![Role::Judge, Role::Hunter, Role::Confessor, Role::Lover, Role::Gemcrafter, Role::Enlightened, Role::Minion];
     let visible = vec![Some(Role::Gemcrafter), Some(Role::Enlightened), Some(Role::Lover), None, None, None];
+    let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ClaimStatement{target_index: 2, claim_type: ClaimType::Good}),
         Box::new(EnlightenedStatement::Equidistant),
@@ -352,7 +364,7 @@ fn test_enlightened() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 0, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 0, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
@@ -371,6 +383,7 @@ fn test_enlightened() {
 fn test_wretch() {
     let deck = vec![Role::Hunter, Role::Empress, Role::Lover, Role::Gemcrafter, Role::Confessor, Role::Wretch, Role::Minion];
     let visible = vec![Some(Role::Empress), Some(Role::Lover), Some(Role::Confessor), None, Some(Role::Lover), None, Some(Role::Hunter)];
+    let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(EvilCountStatement { target_indexes: vec![5, 2, 3], evil_count: 1, minimum: false, none_closer: false}),
         Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
@@ -381,7 +394,7 @@ fn test_wretch() {
         Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 1, minimum: true, none_closer: true}),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 1, 1);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 1);
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
@@ -401,6 +414,7 @@ fn test_twin_and_medium() {
     use Role::*;
     let deck = vec![Judge, Lover, Gemcrafter, Enlightened, Medium, Wretch, Minion, TwinMinion];
     let visible = vec![Some(Medium), Some(Judge), Some(Gemcrafter), Some(Lover), Some(Gemcrafter), None, None];
+    let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(RoleClaimStatement{target_index: 2, role: Gemcrafter}),
         Box::new(ClaimStatement{target_index: 0, claim_type: ClaimType::Lying}),
@@ -411,7 +425,7 @@ fn test_twin_and_medium() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 1, 2);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 1, 2);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
@@ -436,6 +450,7 @@ fn test_jester() {
     use Role::*;
     let deck = vec![Gemcrafter, Jester, Empress, Hunter, Lover, Wretch, Minion, TwinMinion];
     let visible = vec![Some(Jester), None, Some(Lover), None, None, Some(Hunter), Some(Lover), None];
+    let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(EvilCountStatement{target_indexes: vec![0,2,5], evil_count: 1, minimum: false, none_closer: false}),
         Box::new(UnrevealedStatement),
@@ -447,7 +462,7 @@ fn test_jester() {
         Box::new(UnrevealedStatement),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &observed, 5, 1, 2);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 2);
     for solution in &solutions {
         assert!(
             is_evil(&solution[5]),
@@ -456,6 +471,32 @@ fn test_jester() {
         );
         assert!(
             is_evil(&solution[6]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
+#[test]
+fn test_confirmed() {
+    use Role::*;
+    let deck = vec![Knight, Minion];
+    let visible = vec![Some(Knight), Some(Knight)];
+    let confirmed = vec![Some(Knight), None];
+    let observed: Vec<Box<dyn RoleStatement>> = vec![
+        Box::new(UnrevealedStatement),
+        Box::new(UnrevealedStatement),
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 1, 0, 1);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[1]),
             "Unmatching solution found. Solutions: {:#?}",
             solutions
         );
