@@ -1,4 +1,3 @@
-// src/solver.rs
 use crate::roles::{produce_statements, Role, Alignment, RoleStatement};
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -15,6 +14,8 @@ pub fn brute_force_solve(
     deck: &[Role],
     visible_roles: &[Option<Role>],
     observed_statements: &[Box<dyn RoleStatement>],
+    villagers: usize,
+    evil: usize,
 ) -> Vec<Vec<Role>> {
     assert_eq!(
         visible_roles.len(),
@@ -22,66 +23,82 @@ pub fn brute_force_solve(
         "visible_roles and observed_statements must match"
     );
     let n = visible_roles.len();
-    assert_eq!(deck.len(), n, "v0.1 assumes deck size == played size");
 
     let mut valid: Vec<Vec<Role>> = Vec::new();
     let mut seen = HashSet::new();
 
-    for perm in deck.iter().permutations(n) {
-        let candidate: Vec<Role> = perm.into_iter().copied().collect();
+    let (villager_roles, evil_roles): (Vec<_>, Vec<_>) = deck
+        .iter()
+        .partition(|role| role.alignment() == Alignment::Villager);
+    let villager_combos = villager_roles.iter().combinations(villagers);
+    let evil_combos = evil_roles.iter().combinations(evil);
 
-        if !seen.insert(candidate.clone()) {
-            continue;
-        }
-
-        // For each true_role position, determine disguise choices:
-        // - If true_role == Minion => disguise may be any non-evil role present in deck.
-        // - Else: disguise == true_role.
-        let disguise_choices: Vec<Vec<Role>> = candidate
-            .iter()
-            .map(|&r| {
-                if r == Role::Minion {
-                    deck
-                        .iter()
-                        .copied()
-                        .unique()
-                        .filter(|role| role.alignment() != Alignment::Evil)
-                        .collect()
-                } else {
-                    vec![r]
-                }
-            })
-            .collect();
-
-        // iterate cartesian product of disguise assignments
-        for disguise_assign in cartesian(&disguise_choices) {
-            // Check visible role match
-            let visible_ok = disguise_assign
+    for v_combo in villager_combos {
+        for e_combo in evil_combos.clone() {
+            let combined: Vec<Role> = v_combo
                 .iter()
-                .zip(visible_roles.iter())
-                .all(|(d, v)| v.is_none() || v.as_ref() == Some(d));
-            if !visible_ok {
-                continue;
-            }
+                .chain(e_combo.iter())
+                .copied()
+                .cloned()
+                .collect();
 
-            let mut all_eq = true;
-            for (idx, (&true_role, &vis_role)) in candidate.iter().zip(disguise_assign.iter()).enumerate() {
-                // produce_statements likely returns Vec<Box<dyn RoleStatement>>
-                let possible_statements = produce_statements(true_role, Some(vis_role), &candidate, idx);
+            for perm in combined.iter().permutations(n) {
+                let candidate: Vec<Role> = perm.into_iter().copied().collect();
 
-                let obs = &observed_statements[idx];
-
-                // Check if any of the possible statements match the observed
-                if !possible_statements
-                    .iter()
-                    .any(|ps| obs.equals(ps.as_ref()))
-                {
-                    all_eq = false;
-                    break;
+                if !seen.insert(candidate.clone()) {
+                    continue;
                 }
-            }
-            if all_eq {
-                valid.push(candidate.clone());
+
+                // For each true_role position, determine disguise choices:
+                // - If true_role == Minion => disguise may be any non-evil role present in deck.
+                // - Else: disguise == true_role.
+                let disguise_choices: Vec<Vec<Role>> = candidate
+                    .iter()
+                    .map(|&r| {
+                        if r == Role::Minion {
+                            deck
+                                .iter()
+                                .copied()
+                                .unique()
+                                .filter(|role| role.alignment() != Alignment::Evil)
+                                .collect()
+                        } else {
+                            vec![r]
+                        }
+                    })
+                    .collect();
+
+                // iterate cartesian product of disguise assignments
+                for disguise_assign in cartesian(&disguise_choices) {
+                    // Check visible role match
+                    let visible_ok = disguise_assign
+                        .iter()
+                        .zip(visible_roles.iter())
+                        .all(|(d, v)| v.is_none() || v.as_ref() == Some(d));
+                    if !visible_ok {
+                        continue;
+                    }
+
+                    let mut all_eq = true;
+                    for (idx, (&true_role, &vis_role)) in candidate.iter().zip(disguise_assign.iter()).enumerate() {
+                        // produce_statements likely returns Vec<Box<dyn RoleStatement>>
+                        let possible_statements = produce_statements(true_role, Some(vis_role), &candidate, idx);
+
+                        let obs = &observed_statements[idx];
+
+                        // Check if any of the possible statements match the observed
+                        if !possible_statements
+                            .iter()
+                            .any(|ps| obs.equals(ps.as_ref()))
+                        {
+                            all_eq = false;
+                            break;
+                        }
+                    }
+                    if all_eq {
+                        valid.push(candidate.clone());
+                    }
+                }
             }
         }
     }

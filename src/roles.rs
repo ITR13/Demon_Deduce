@@ -1,4 +1,3 @@
-// src/roles.rs
 use std::any::Any;
 use std::fmt;
 use itertools::Itertools;
@@ -7,6 +6,7 @@ use itertools::Itertools;
 pub enum Role {
     // Villager
     Confessor,
+    Enlightened,
     Gemcrafter,
     Hunter,
     Judge,
@@ -26,14 +26,14 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Queen | Judge => Alignment::Villager,
+            Confessor | Gemcrafter | Hunter | Lover | Queen | Judge | Enlightened=> Alignment::Villager,
             Minion => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Queen | Judge => false,
+            Confessor | Gemcrafter | Hunter | Lover | Queen | Judge | Enlightened => false,
             Minion => true,
         }
     }
@@ -43,6 +43,7 @@ impl fmt::Display for Role {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Role::Confessor => write!(f, "Confessor"),
+            Role::Enlightened => write!(f, "Enlightened"),
             Role::Gemcrafter => write!(f, "Gemcrafter"),
             Role::Hunter => write!(f, "Hunter"),
             Role::Judge => write!(f, "Judge"),
@@ -220,6 +221,69 @@ fn count_neighbor_evil(true_roles: &[Role], position: usize, offset: usize) -> u
         .count()
 }
 
+// Enlightened statement
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EnlightenedStatement {
+    Clockwise,
+    CounterClockwise,
+    Equidistant,
+}
+impl EnlightenedStatement {
+    fn iterator() -> impl Iterator<Item = EnlightenedStatement> {
+        [
+            EnlightenedStatement::Clockwise,
+            EnlightenedStatement::CounterClockwise,
+            EnlightenedStatement::Equidistant,
+        ]
+        .into_iter()
+    }
+}
+
+impl fmt::Display for EnlightenedStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Closest Evil is {}", self)
+    }
+}
+
+impl RoleStatement for EnlightenedStatement {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn equals(&self, other: &dyn RoleStatement) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<EnlightenedStatement>()
+            .map(|o| o == self)
+            .unwrap_or(false)
+    }
+}
+
+
+
+pub fn closest_evil_direction(true_roles: &[Role], position: usize) -> EnlightenedStatement {
+    let len = true_roles.len();
+    let max_offset = (len + 1) / 2;
+
+    for offset in 1..=max_offset {
+        let neighbors = neighbor_indexes(len, position, offset);
+        let left = true_roles[neighbors[0]];
+        let right = true_roles[neighbors[1]];
+
+        let left_evil = left.alignment() == Alignment::Evil;
+        let right_evil = right.alignment() == Alignment::Evil;
+
+        match (left_evil, right_evil) {
+            (true, true) => return EnlightenedStatement::Equidistant,
+            (true, false) => return EnlightenedStatement::CounterClockwise,
+            (false, true) => return EnlightenedStatement::Clockwise,
+            _ => (), // keep searching
+        }
+    }
+
+    EnlightenedStatement::Equidistant
+}
+
 
 /// Produce the typed statements a card can make given:
 /// - `true_role`: the role it really is from the deck
@@ -240,6 +304,13 @@ pub fn produce_statements(
     if true_role.lying() {
         return match visible_role.unwrap() {
             Role::Confessor => vec![Box::new(ConfessorStatement::IAmDizzy)],
+            Role::Enlightened => {
+                let true_response = closest_evil_direction(true_roles, _position);
+                EnlightenedStatement::iterator()
+                    .filter(|&stmt| stmt != true_response)
+                    .map(|stmt| Box::new(stmt) as Box<dyn RoleStatement>)
+                    .collect()
+            }
             Role::Gemcrafter => {
                 // Claim all evil players are good
                 true_roles
@@ -253,22 +324,6 @@ pub fn produce_statements(
                         }) as Box<dyn RoleStatement>
                     })
                     .collect()
-            },
-            Role::Judge => {
-                // Claim all lying players are truthy, and truthy players are lying
-                let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, r)| {
-                        Box::new(ClaimStatement {
-                            target_index: idx,
-                            claim_type: if r.lying() { ClaimType::Truthy } else { ClaimType::Lying },
-                        }) as Box<dyn RoleStatement>
-                    })
-                    .collect();
-                statements.push(Box::new(UnrevealedStatement));
-
-                statements
             },
             Role::Hunter => {
                 let max_index = (true_roles.len() + 1) / 2;
@@ -289,14 +344,14 @@ pub fn produce_statements(
                     .collect()
             },
             Role::Judge => {
-                // Claim all lying players are lying, and truthy players are truthy
+                // Claim all lying players are truthy, and truthy players are lying
                 let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
                     .iter()
                     .enumerate()
                     .map(|(idx, r)| {
                         Box::new(ClaimStatement {
                             target_index: idx,
-                            claim_type: if r.lying() { ClaimType::Lying } else { ClaimType::Truthy},
+                            claim_type: if r.lying() { ClaimType::Truthy } else { ClaimType::Lying },
                         }) as Box<dyn RoleStatement>
                     })
                     .collect();
@@ -351,6 +406,7 @@ pub fn produce_statements(
 
     return match visible_role.unwrap() {
         Role::Confessor => vec![Box::new(ConfessorStatement::IAmGood)],
+        Role::Enlightened => vec![Box::new(closest_evil_direction(true_roles, _position)) as Box<dyn RoleStatement>],
         Role::Gemcrafter => {
             // Claim all villagers are good
             true_roles
@@ -365,15 +421,6 @@ pub fn produce_statements(
                 })
                 .collect()
         },
-        Role::Lover => {
-            let evil_count = count_neighbor_evil(true_roles, _position, 1);
-            vec![Box::new(EvilCountStatement {
-                target_indexes: neighbor_indexes(true_roles.len(), _position, 1),
-                evil_count: evil_count,
-                minimum: false,
-                none_closer: false,
-            })]
-        },
         Role::Hunter => {
             let max_index = (true_roles.len() + 1) / 2;
             let index = (1..=max_index)
@@ -385,6 +432,31 @@ pub fn produce_statements(
                 evil_count: 1,
                 minimum: true,
                 none_closer: true,
+            })]
+        },
+        Role::Judge => {
+            // Claim all lying players are lying, and truthy players are truthy
+            let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+                .iter()
+                .enumerate()
+                .map(|(idx, r)| {
+                    Box::new(ClaimStatement {
+                        target_index: idx,
+                        claim_type: if r.lying() { ClaimType::Lying } else { ClaimType::Truthy},
+                    }) as Box<dyn RoleStatement>
+                })
+                .collect();
+            statements.push(Box::new(UnrevealedStatement));
+
+            statements
+        },
+        Role::Lover => {
+            let evil_count = count_neighbor_evil(true_roles, _position, 1);
+            vec![Box::new(EvilCountStatement {
+                target_indexes: neighbor_indexes(true_roles.len(), _position, 1),
+                evil_count: evil_count,
+                minimum: false,
+                none_closer: false,
             })]
         },
         Role::Queen => {
