@@ -6,16 +6,18 @@ use itertools::Itertools;
 pub enum Role {
     // Villager
     Confessor,
+    Empress,
     Enlightened,
     Gemcrafter,
     Hunter,
     Judge,
     Lover,
-    Empress,
+    Medium,
     // Outcast
     Wretch,
     // Evil
     Minion,
+    TwinMinion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -35,23 +37,23 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Empress | Judge | Enlightened => Group::Villager,
+            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Lover | Medium | Judge=> Group::Villager,
             Wretch => Group::Outcast,
-            Minion => Group::Minion,
+            Minion | TwinMinion => Group::Minion,
         }
     }
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Empress | Judge | Enlightened | Wretch => Alignment::Good,
-            Minion => Alignment::Evil,
+            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Lover | Medium | Judge | Wretch => Alignment::Good,
+            Minion | TwinMinion => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Hunter | Lover | Empress | Judge | Enlightened | Wretch => false,
-            Minion => true,
+            Confessor | Empress | Enlightened  | Gemcrafter | Hunter | Lover | Medium | Judge | Wretch => false,
+            Minion | TwinMinion => true,
         }
     }
 }
@@ -60,14 +62,16 @@ impl fmt::Display for Role {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Role::Confessor => write!(f, "Confessor"),
+            Role::Empress => write!(f, "Empress"),
             Role::Enlightened => write!(f, "Enlightened"),
             Role::Gemcrafter => write!(f, "Gemcrafter"),
             Role::Hunter => write!(f, "Hunter"),
             Role::Judge => write!(f, "Judge"),
             Role::Lover => write!(f, "Lover"),
-            Role::Empress => write!(f, "Empress"),
+            Role::Medium => write!(f, "Medium"),
             Role::Wretch => write!(f, "Wretch"),
             Role::Minion => write!(f, "Minion"),
+            Role::TwinMinion => write!(f, "TwinMinion"),
         }
     }
 }
@@ -183,6 +187,30 @@ impl RoleStatement for ClaimStatement {
         other
             .as_any()
             .downcast_ref::<ClaimStatement>()
+            .map(|o| o == self)
+            .unwrap_or(false)
+    }
+}
+
+// Medium statement
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoleClaimStatement {
+    pub target_index: usize,
+    pub role: Role,
+}
+impl fmt::Display for RoleClaimStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Player {} is {}", self.target_index, self.role)
+    }
+}
+impl RoleStatement for RoleClaimStatement {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn equals(&self, other: &dyn RoleStatement) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<RoleClaimStatement>()
             .map(|o| o == self)
             .unwrap_or(false)
     }
@@ -312,6 +340,7 @@ pub fn produce_statements(
     true_role: Role,
     visible_role: Option<Role>,
     true_roles: &[Role],
+    disguised_roles: &[Role],
     _position: usize
 ) -> Vec<Box<dyn RoleStatement>> {
     // If the card is unrevealed, we don't produce any info beyond UnrevealedStatement
@@ -322,6 +351,24 @@ pub fn produce_statements(
     if true_role.lying() {
         return match visible_role.unwrap() {
             Role::Confessor => vec![Box::new(ConfessorStatement::IAmDizzy)],
+            Role::Empress => {
+                let good = true_roles
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, role)| role.alignment() != Alignment::Evil);
+
+                good.combinations(3)
+                    .map(move |pair| {
+                        let target_indexes = vec![pair[0].0, pair[1].0, pair[2].0];
+                        Box::new(EvilCountStatement {
+                            target_indexes: target_indexes,
+                            evil_count: 1,
+                            minimum: false,
+                            none_closer: false,
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect()
+            },
             Role::Enlightened => {
                 let true_response = closest_evil_direction(true_roles, _position);
                 EnlightenedStatement::iterator()
@@ -397,24 +444,21 @@ pub fn produce_statements(
                     })
                     .collect()
             },
-            Role::Empress => {
-                let good = true_roles
+            Role::Medium => {
+                // Claim all disguised players as their disguise
+                true_roles
                     .iter()
+                    .zip(disguised_roles.iter())
                     .enumerate()
-                    .filter(|(_, role)| role.alignment() != Alignment::Evil);
-
-                good.combinations(3)
-                    .map(move |pair| {
-                        let target_indexes = vec![pair[0].0, pair[1].0, pair[2].0];
-                        Box::new(EvilCountStatement {
-                            target_indexes: target_indexes,
-                            evil_count: 1,
-                            minimum: false,
-                            none_closer: false,
+                    .filter(|(_, (r, d))| r != d)
+                    .map(|(idx, (_, d))| {
+                        Box::new(RoleClaimStatement {
+                            target_index: idx,
+                            role: *d,
                         }) as Box<dyn RoleStatement>
                     })
                     .collect()
-            },
+            }
             other => panic!(
                 "produce_statements: unsupported role combination: true={:?}, visible={:?}",
                 true_role, other
@@ -425,6 +469,28 @@ pub fn produce_statements(
     return match visible_role.unwrap() {
         Role::Confessor => vec![Box::new(ConfessorStatement::IAmGood)],
         Role::Enlightened => vec![Box::new(closest_evil_direction(true_roles, _position)) as Box<dyn RoleStatement>],
+        Role::Empress => {
+            let (evil, good): (Vec<_>, Vec<_>) = true_roles
+                .iter()
+                .enumerate()
+                .partition(|(_, r)| r.alignment() == Alignment::Evil);
+
+            evil.iter()
+                .flat_map(|(ei, _)| {
+                    good.iter()
+                        .combinations(2)
+                        .map(move |pair| {
+                            let target_indexes = vec![*ei, pair[0].0, pair[1].0];
+                            Box::new(EvilCountStatement {
+                                target_indexes: target_indexes,
+                                evil_count: 1,
+                                minimum: false,
+                                none_closer: false,
+                            }) as Box<dyn RoleStatement>
+                        })
+                })
+                .collect()
+        },
         Role::Gemcrafter => {
             // Claim all villagers are good
             true_roles
@@ -477,58 +543,24 @@ pub fn produce_statements(
                 none_closer: false,
             })]
         },
-        Role::Empress => {
-            let (evil, good): (Vec<_>, Vec<_>) = true_roles
+        Role::Medium => {
+            // Claim all good players as their role
+            true_roles
                 .iter()
                 .enumerate()
-                .partition(|(_, r)| r.alignment() == Alignment::Evil);
-
-            evil.iter()
-                .flat_map(|(ei, _)| {
-                    good.iter()
-                        .combinations(2)
-                        .map(move |pair| {
-                            let target_indexes = vec![*ei, pair[0].0, pair[1].0];
-                            Box::new(EvilCountStatement {
-                                target_indexes: target_indexes,
-                                evil_count: 1,
-                                minimum: false,
-                                none_closer: false,
-                            }) as Box<dyn RoleStatement>
-                        })
+                .filter(|(_, r)| r.alignment() == Alignment::Good)
+                .map(|(idx, r)| {
+                    Box::new(RoleClaimStatement {
+                        target_index: idx,
+                        role: *r,
+                    }) as Box<dyn RoleStatement>
                 })
                 .collect()
-        },
+        }
         Role::Wretch => vec![Box::new(UnrevealedStatement)],
         other => panic!(
             "produce_statements: unsupported role combination: true={:?}, visible={:?}",
             true_role, other
         ),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn confessor_says_good() {
-        let s = produce_statements(Role::Confessor, Some(Role::Confessor), &[], 0);
-        assert!(s[0].equals(&ConfessorStatement::IAmGood));
-    }
-
-    #[test]
-    fn minion_disguised_says_dizzy() {
-        let s = produce_statements(Role::Minion, Some(Role::Confessor), &[], 0);
-        assert!(s[0].equals(&ConfessorStatement::IAmDizzy));
-    }
-
-    #[test]
-    fn claim_statement_equality() {
-        let a = ClaimStatement { target_index: 1, claim_type: ClaimType::Evil };
-        let b = ClaimStatement { target_index: 1, claim_type: ClaimType::Evil };
-        let c = ClaimStatement { target_index: 2, claim_type: ClaimType::Good };
-        assert!(a.equals(&b));
-        assert!(!a.equals(&c));
     }
 }

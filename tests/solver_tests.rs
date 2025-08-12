@@ -21,7 +21,7 @@ fn finds_minion_with_typed_statements() {
 }
 
 fn is_evil(role: &Role) -> bool {
-    matches!(role, Role::Minion)
+    role.alignment() == Alignment::Evil
 }
 
 #[test]
@@ -267,7 +267,7 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
 }
 
 #[test]
-fn test_Empress_Empress_Empress() {
+fn test_empress_empress_empress() {
     let deck = vec![Role::Empress, Role::Empress, Role::Empress, Role::Empress, Role::Minion];
 
     let visible = vec![
@@ -385,6 +385,41 @@ fn test_wretch() {
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
+#[test]
+fn test_twin_and_medium() {
+    use Role::*;
+    let deck = vec![Judge, Lover, Gemcrafter, Enlightened, Medium, Wretch, Minion, TwinMinion];
+    let visible = vec![Some(Medium), Some(Judge), Some(Gemcrafter), Some(Lover), Some(Gemcrafter), None, None];
+    let observed: Vec<Box<dyn RoleStatement>> = vec![
+        Box::new(RoleClaimStatement{target_index: 2, role: Gemcrafter}),
+        Box::new(ClaimStatement{target_index: 0, claim_type: ClaimType::Lying}),
+        Box::new(ClaimStatement{target_index: 0, claim_type: ClaimType::Good}),
+        Box::new(EvilCountStatement{target_indexes: vec![2,4], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(ClaimStatement{target_index: 3, claim_type: ClaimType::Good}),
+        Box::new(UnrevealedStatement),
+        Box::new(UnrevealedStatement),
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &observed, 4, 1, 2);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[0]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+        assert!(
+            is_evil(&solution[2]),
             "Unmatching solution found. Solutions: {:#?}",
             solutions
         );

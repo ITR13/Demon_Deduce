@@ -82,7 +82,7 @@ pub fn brute_force_solve(
                     let disguise_choices: Vec<Vec<Role>> = candidate
                         .iter()
                         .map(|&r| {
-                            if r == Role::Minion {
+                            if r.group() == Group::Minion {
                                 deck
                                     .iter()
                                     .copied()
@@ -96,7 +96,7 @@ pub fn brute_force_solve(
                         .collect();
 
                     // iterate cartesian product of disguise assignments
-                    for wretch_disguise_assign in cartesian(&wretch_disguise_choices) {
+                    'disguise_loop: for wretch_disguise_assign in cartesian(&wretch_disguise_choices) {
                         for disguise_assign in cartesian(&disguise_choices) {
                             // Check visible role match
                             let visible_ok = disguise_assign
@@ -110,7 +110,7 @@ pub fn brute_force_solve(
                             let mut all_eq = true;
                             for (idx, (&true_role, &vis_role)) in candidate.iter().zip(disguise_assign.iter()).enumerate() {
                                 // NB: Using wretch_disguise_assign as true role here, and not above bc we want the card itself to know it's true role, but not other cards
-                                let possible_statements = produce_statements(true_role, Some(vis_role), &wretch_disguise_assign, idx);
+                                let possible_statements = produce_statements(true_role, Some(vis_role), &wretch_disguise_assign, &disguise_assign, idx);
 
                                 let obs = &observed_statements[idx];
 
@@ -125,6 +125,7 @@ pub fn brute_force_solve(
                             }
                             if all_eq {
                                 valid.push(candidate.clone());
+                                break 'disguise_loop;
                             }
                         }
                     }
