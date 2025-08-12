@@ -173,8 +173,8 @@ fn test_lover_lover_unrevealed_minion_unrevealed() {
     ];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 0}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0}),
+        Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
@@ -209,8 +209,8 @@ fn test_lover_lover_unrevealed_unrevealed_minion() {
     ];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 1}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0}),
+        Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
@@ -244,9 +244,9 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
     ];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![1, 3], evil_count: 1}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 1}),
-        Box::new(EvilCountStatement { target_indexes: vec![1, 3], evil_count: 0}),
+        Box::new(EvilCountStatement { target_indexes: vec![1, 3], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![1, 3], evil_count: 0, minimum: false, none_closer: false}),
         Box::new(UnrevealedStatement),
     ];
 
@@ -279,17 +279,55 @@ fn test_queen_queen_queen() {
     ];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![1, 2, 3], evil_count: 1}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 3, 4], evil_count: 1}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 3, 4], evil_count: 1}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 1, 4], evil_count: 1}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 1, 2], evil_count: 1}),
+        Box::new(EvilCountStatement { target_indexes: vec![1, 2, 3], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 3, 4], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 3, 4], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 1, 4], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 1, 2], evil_count: 1, minimum: false, none_closer: false}),
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &observed);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
+
+#[test]
+fn test_hunter_lover() {
+    let deck = vec![Role::Hunter, Role::Lover, Role::Confessor, Role::Confessor, Role::Confessor, Role::Minion];
+
+    let visible = vec![
+        Some(Role::Hunter),
+        Some(Role::Lover),
+        None,
+        None,
+        None,
+        None,
+    ];
+
+    let observed: Vec<Box<dyn RoleStatement>> = vec![
+        Box::new(EvilCountStatement { target_indexes: vec![3, 3], evil_count: 1, minimum: true, none_closer: true}),
+        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(UnrevealedStatement),
+        Box::new(UnrevealedStatement),
+        Box::new(UnrevealedStatement),
+        Box::new(UnrevealedStatement),
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &observed);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[3]),
             "Unmatching solution found. Solutions: {:#?}",
             solutions
         );

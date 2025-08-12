@@ -8,6 +8,7 @@ pub enum Role {
     // Villager
     Confessor,
     Gemcrafter,
+    Hunter,
     Lover,
     Queen,
     // Evil
@@ -24,7 +25,7 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Gemcrafter | Lover | Queen => Alignment::Villager,
+            Confessor | Gemcrafter | Hunter | Lover | Queen => Alignment::Villager,
             Minion => Alignment::Evil,
         }
     }
@@ -35,6 +36,7 @@ impl fmt::Display for Role {
         match self {
             Role::Confessor => write!(f, "Confessor"),
             Role::Gemcrafter => write!(f, "Gemcrafter"),
+            Role::Hunter => write!(f, "Hunter"),
             Role::Lover => write!(f, "Lover"),
             Role::Queen => write!(f, "Queen"),
             Role::Minion => write!(f, "Minion"),
@@ -148,11 +150,13 @@ impl RoleStatement for ClaimStatement {
     }
 }
 
-// Lover and Queen statement
+// Lover, Queen, and Hunter statement
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvilCountStatement {
     pub target_indexes: Vec<usize>,
     pub evil_count: usize, // How many evil are there among the above listed
+    pub minimum: bool, // If the found evils are at minimum evil_count (if false it's the exact number)
+    pub none_closer: bool, // If true, there are no closer evils to the claimer
 }
 impl EvilCountStatement {
     fn unordered_indexes_eq(&self, other: &Self) -> bool {
@@ -178,7 +182,7 @@ impl RoleStatement for EvilCountStatement {
         other
             .as_any()
             .downcast_ref::<EvilCountStatement>()
-            .map(|o| self.unordered_indexes_eq(o) && self.evil_count == o.evil_count)
+            .map(|o| self.unordered_indexes_eq(o) && self.evil_count == o.evil_count && self.minimum == o.minimum && self.none_closer == o.none_closer)
             .unwrap_or(false)
     }
 }
@@ -190,12 +194,13 @@ fn neighbor_indexes(len: usize, position: usize, offset: usize) -> Vec<usize> {
     ]
 }
 
-fn count_neighbor_evil(true_roles: &[Role], position: usize) -> usize {
-    neighbor_indexes(true_roles.len(), position, 1)
+fn count_neighbor_evil(true_roles: &[Role], position: usize, offset: usize) -> usize {
+    neighbor_indexes(true_roles.len(), position, offset)
         .iter()
         .filter(|&&i| true_roles[i].alignment() == Alignment::Evil)
         .count()
 }
+
 
 /// Produce the typed statements a card can make given:
 /// - `true_role`: the role it really is from the deck
@@ -230,10 +235,25 @@ pub fn produce_statements(
                 .collect()
         },
         Role::Lover => {
-            let evil_count = count_neighbor_evil(true_roles, _position);
+            let evil_count = count_neighbor_evil(true_roles, _position, 1);
             vec![Box::new(EvilCountStatement {
                 target_indexes: neighbor_indexes(true_roles.len(), _position, 1),
                 evil_count: evil_count,
+                minimum: false,
+                none_closer: false,
+            })]
+        },
+        Role::Hunter => {
+            let max_index = (true_roles.len() + 1) / 2;
+            let index = (1..=max_index)
+                .find(|&i| count_neighbor_evil(true_roles, _position, i) > 0)
+                .unwrap_or(1);
+
+            vec![Box::new(EvilCountStatement {
+                target_indexes: neighbor_indexes(true_roles.len(), _position, index),
+                evil_count: 1,
+                minimum: true,
+                none_closer: true,
             })]
         },
         Role::Queen => {
@@ -251,6 +271,8 @@ pub fn produce_statements(
                             Box::new(EvilCountStatement {
                                 target_indexes: target_indexes,
                                 evil_count: 1,
+                                minimum: false,
+                                none_closer: false,
                             }) as Box<dyn RoleStatement>
                         })
                 })
@@ -273,6 +295,24 @@ pub fn produce_statements(
                     })
                     .collect()
             },
+            Role::Hunter => {
+                let max_index = (true_roles.len() + 1) / 2;
+                let index = (1..=max_index)
+                    .find(|&i| count_neighbor_evil(true_roles, _position, i) > 0)
+                    .unwrap_or(1);
+
+                (1..=max_index)
+                    .filter(|&i| i != index)
+                    .map(|i| {
+                        Box::new(EvilCountStatement {
+                            target_indexes: neighbor_indexes(true_roles.len(), _position, i),
+                            evil_count: 1,
+                            minimum: true,
+                            none_closer: true,
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect()
+            },
             Role::Lover => {
                 let neighbors = neighbor_indexes(true_roles.len(), _position, 1);
 
@@ -287,6 +327,8 @@ pub fn produce_statements(
                         Box::new(EvilCountStatement {
                             target_indexes: neighbors.clone(),
                             evil_count: fake_count,
+                            minimum: false,
+                            none_closer: false,
                         }) as Box<dyn RoleStatement>
                     })
                     .collect()
@@ -303,6 +345,8 @@ pub fn produce_statements(
                         Box::new(EvilCountStatement {
                             target_indexes: target_indexes,
                             evil_count: 1,
+                            minimum: false,
+                            none_closer: false,
                         }) as Box<dyn RoleStatement>
                     })
                     .collect()
