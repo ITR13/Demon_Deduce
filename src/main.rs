@@ -1,6 +1,7 @@
 use demon_deduce::{brute_force_solve, Role};
 use demon_deduce::roles::*;
 use colored::*;
+use std::panic::Location;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -41,13 +42,13 @@ fn parse_input(
     }
 
     // Parsing comma-separated roles into structured Role enum
-    let deck = parse_roles(&args[1]).map_err(|_| "Failed to parse deck".to_string())?;
+    let deck = parse_roles(&args[1]).expect_alt("Failed to parse deck");
 
     // Convert counts from string to integer, fail fast if invalid
-    let villagers = args[2].parse().map_err(|_| "Invalid villagers count".to_string())?;
-    let minions = args[3].parse().map_err(|_| "Invalid minions count".to_string())?;
-    let demons = args[4].parse().map_err(|_| "Invalid demons count".to_string())?;
-    let outcasts = args[5].parse().map_err(|_| "Invalid outcasts count".to_string())?;
+    let villagers = args[2].parse().expect_alt("Invalid villagers count");
+    let minions = args[3].parse().expect_alt("Invalid minions count");
+    let demons = args[4].parse().expect_alt("Invalid demons count");
+    let outcasts = args[5].parse().expect_alt("Invalid outcasts count");
 
     let mut visible = Vec::new();
     let mut confirmed = Vec::new();
@@ -64,14 +65,14 @@ fn parse_input(
         });
 
         // Confirmed roles might not be provided, handle gracefully
-        confirmed.push(if parts.len() == 1 || parts[1].eq_ignore_ascii_case("?") {
+        confirmed.push(if parts.len() <= 1 || parts[1].eq_ignore_ascii_case("?") {
             None
         } else {
             Some(Role::from_str_case_insensitive(parts[1])?)
         });
 
         // Default to UnrevealedStatement if statement is missing or unknown
-        observed.push(if parts.len() == 2
+        observed.push(if parts.len() <= 2
             || parts[2].eq_ignore_ascii_case("?")
             || parts[2].eq_ignore_ascii_case("unrevealed")
         {
@@ -96,6 +97,12 @@ fn run_solver_and_print(
 ) {
     // Solve all valid assignments and collect solutions
     let sols = brute_force_solve(deck, visible, confirmed, observed, villagers, minions, demons, outcasts);
+
+    if sols.len() == 0 {
+        println!("No solutions found.");
+        return;
+    }
+
 
     println!("Found {} solution(s)", sols.len());
 
@@ -165,7 +172,7 @@ fn parse_statement_case_insensitive(s: &str) -> Box<dyn RoleStatement> {
         if parts.len() != 2 {
             panic!("Invalid Claim statement format: {}", s);
         }
-        let target_index = parts[0].parse().expect("Invalid target index");
+        let target_index = parts[0].parse().expect_alt("Invalid target index");
         let claim_type = match parts[1].trim() {
             "good" => ClaimType::Good,
             "evil" => ClaimType::Evil,
@@ -182,9 +189,9 @@ fn parse_statement_case_insensitive(s: &str) -> Box<dyn RoleStatement> {
 
         // Allow multiple targets, parse optional fields with defaults
         let target_indexes = parts[0].split(',')
-            .map(|s| s.trim().parse().expect("Invalid target index"))
+            .map(|s| s.trim().parse().expect_alt("Invalid target index"))
             .collect();
-        let evil_count = parts[1].trim().parse().expect("Invalid evil count");
+        let evil_count = parts[1].trim().parse().expect_alt("Invalid evil count");
         let minimum = if parts.len() > 2 { parts[2].trim().parse().unwrap_or(false) } else { false };
         let none_closer = if parts.len() > 3 { parts[3].trim().parse().unwrap_or(false) } else { false };
 
@@ -194,15 +201,15 @@ fn parse_statement_case_insensitive(s: &str) -> Box<dyn RoleStatement> {
         if parts.len() != 2 {
             panic!("Invalid RoleClaim statement format: {}", s);
         }
-        let target_index = parts[0].trim().parse().expect("Invalid target index");
-        let role = Role::from_str_case_insensitive(parts[1].trim()).expect("Invalid target role");
+        let target_index = parts[0].trim().parse().expect_alt("Invalid target index");
+        let role:Role = Role::from_str_case_insensitive(parts[1].trim()).expect_alt("Invalid target role");
         Box::new(RoleClaimStatement { target_index, role })
     } else if s_clean.starts_with("roledistance[") {
         let parts: Vec<&str> = s_clean.trim_start_matches("roledistance[").trim_end_matches(']').split(';').collect();
         if parts.len() != 2 {
             panic!("Invalid RoleDistance statement format: {}", s);
         }
-        let role = Role::from_str_case_insensitive(parts[0].trim()).expect("Invalid target role");
+        let role:Role = Role::from_str_case_insensitive(parts[0].trim()).expect_alt("Invalid target role");
         let distance = parts[1].trim().parse().expect("Invalid distance");
         Box::new(RoleDistanceStatement { role, distance })
     } else {
@@ -232,11 +239,35 @@ impl CaseInsensitiveFromStr for Role {
             "scout" => Ok(Role::Scout),
             "wretch" => Ok(Role::Wretch),
             "bombardier" => Ok(Role::Bombardier),
-            "baa" => Ok(Role::Baa),
             "minion" => Ok(Role::Minion),
+            "poisoner" => Ok(Role::Poisoner),
             "twinminion" => Ok(Role::TwinMinion),
             "witch" => Ok(Role::Witch),
+            "baa" => Ok(Role::Baa),
             _ => Err(format!("Unknown role: {}", s)),
+        }
+    }
+}
+
+trait ExpectAlt<T> {
+    fn expect_alt(self, msg: &str) -> T;
+}
+
+impl<T, E: std::fmt::Display> ExpectAlt<T> for Result<T, E> {
+    #[track_caller]
+    fn expect_alt(self, msg: &str) -> T {
+        match self {
+            Ok(val) => val,
+            Err(e) => {
+                let location = Location::caller();
+                panic!(
+                    "{}: {}\nCalled from: {}:{}",
+                    msg,
+                    e,
+                    location.file(),
+                    location.line()
+                );
+            }
         }
     }
 }
