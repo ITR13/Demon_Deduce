@@ -340,9 +340,18 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
     let len = true_roles.len();
     let mut poison_options: Vec<Vec<usize>> = Vec::new();
 
-    // Step 1: Collect eligible targets for each poisoner
+    // Step 1: Collect eligible targets for each role
     for (i, &role) in true_roles.iter().enumerate() {
         match role {
+            Role::PlagueDoctor => {
+                let eligible: Vec<usize> = wretch_assign
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, &role)| role.group() == Group::Villager)
+                    .map(|(index, _)| index)
+                    .collect();
+                poison_options.push(eligible);
+            }
             Role::Poisoner => {
                 let neighbors = neighbor_indexes(len, i, 1);
                 let eligible: Vec<usize> = neighbors

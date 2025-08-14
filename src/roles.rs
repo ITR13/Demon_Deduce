@@ -22,8 +22,9 @@ pub enum Role {
     Scout,
     Slayer,
     // Outcast
-    Wretch,
     Bombardier,
+    PlagueDoctor,
+    Wretch,
     // Minion
     Minion,
     Poisoner,
@@ -64,7 +65,7 @@ impl Role {
         use Role::*;
         match self {
             Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout | Slayer => Group::Villager,
-            Wretch | Bombardier => Group::Outcast,
+            Bombardier | PlagueDoctor | Wretch => Group::Outcast,
             Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
         }
@@ -72,14 +73,14 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => Alignment::Good,
+            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => Alignment::Good,
             Baa | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => false,
+            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout | Slayer |Bombardier | PlagueDoctor | Wretch => false,
             Baa | Minion | Poisoner | TwinMinion | Witch => true,
         }
     }
@@ -626,7 +627,8 @@ pub fn produce_statements(
 
             statements
             }
-            Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
+            // TODO: PlagueDoctor
+            Role::Bombardier | Role::Wretch | Role::PlagueDoctor | Role::Knight => vec![Box::new(UnrevealedStatement)],
             other => panic!(
                 "produce_statements: unsupported role combination: visible={:?}, lying={:?}",
                 other, is_lying
@@ -782,7 +784,8 @@ pub fn produce_statements(
 
             statements
         }
-        Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
+        // TODO: PlagueDoctor
+        Role::Wretch | Role::PlagueDoctor | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
         other => panic!(
             "produce_statements: unsupported role combination: true={:?}, visible={:?}",
             visible_role, other
