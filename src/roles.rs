@@ -1,9 +1,11 @@
 use std::any::Any;
 use std::fmt;
 use itertools::Itertools;
-use strum_macros::EnumIter;
+use strum_macros::{EnumIter, EnumString, Display};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter, EnumString, Display)]
+#[strum(serialize_all = "lowercase")]
 pub enum Role {
     // Villager
     Bard,
@@ -79,34 +81,6 @@ impl Role {
         match self {
             Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => false,
             Baa | Minion | Poisoner | TwinMinion | Witch => true,
-        }
-    }
-}
-
-impl fmt::Display for Role {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Role::*;
-        match self {
-            Bard => write!(f, "Bard"),
-            Confessor => write!(f, "Confessor"),
-            Empress => write!(f, "Empress"),
-            Enlightened => write!(f, "Enlightened"),
-            Gemcrafter => write!(f, "Gemcrafter"),
-            Hunter => write!(f, "Hunter"),
-            Jester => write!(f, "Jester"),
-            Judge => write!(f, "Judge"),
-            Knight => write!(f, "Knight"),
-            Lover => write!(f, "Lover"),
-            Medium => write!(f, "Medium"),
-            Scout => write!(f, "Scout"),
-            Slayer => write!(f, "Slayer"),
-            Bombardier => write!(f, "Bombardier"),
-            Wretch => write!(f, "Wretch"),
-            Minion => write!(f, "Minion"),
-            Poisoner => write!(f, "Poisoner"),
-            TwinMinion => write!(f, "TwinMinion"),
-            Witch => write!(f, "Witch"),
-            Baa => write!(f, "Baa"),
         }
     }
 }

@@ -2,6 +2,7 @@ use demon_deduce::{brute_force_solve, Role};
 use demon_deduce::roles::*;
 use colored::*;
 use std::panic::Location;
+use std::str::FromStr;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -61,14 +62,14 @@ fn parse_input(
         visible.push(if parts[0].eq_ignore_ascii_case("?") {
             None
         } else {
-            Some(Role::from_str_case_insensitive(parts[0])?)
+            Some(Role::from_str(parts[0]).expect_alt("Failed to parse visible"))
         });
 
         // Confirmed roles might not be provided, handle gracefully
         confirmed.push(if parts.len() <= 1 || parts[1].eq_ignore_ascii_case("?") {
             None
         } else {
-            Some(Role::from_str_case_insensitive(parts[1])?)
+            Some(Role::from_str(parts[1]).expect_alt("Failed to parse confirmed"))
         });
 
         // Default to UnrevealedStatement if statement is missing or unknown
@@ -142,11 +143,11 @@ fn color_by_group(role: Role) -> String {
     }
 }
 
-fn parse_roles(s: &str) -> Result<Vec<Role>, String> {
+fn parse_roles(s: &str) -> Result<Vec<Role>, strum::ParseError> {
     s.split(',')
         .map(|r| {
             let trimmed = r.trim();
-            Role::from_str_case_insensitive(trimmed)
+            Role::from_str(trimmed)
         })
         .collect::<Result<Vec<_>, _>>() // stop at first error
 }
@@ -202,50 +203,18 @@ fn parse_statement_case_insensitive(s: &str) -> Box<dyn RoleStatement> {
             panic!("Invalid RoleClaim statement format: {}", s);
         }
         let target_index = parts[0].trim().parse().expect_alt("Invalid target index");
-        let role:Role = Role::from_str_case_insensitive(parts[1].trim()).expect_alt("Invalid target role");
+        let role:Role = Role::from_str(parts[1].trim()).expect_alt("Invalid target role");
         Box::new(RoleClaimStatement { target_index, role })
     } else if s_clean.starts_with("roledistance[") {
         let parts: Vec<&str> = s_clean.trim_start_matches("roledistance[").trim_end_matches(']').split(';').collect();
         if parts.len() != 2 {
             panic!("Invalid RoleDistance statement format: {}", s);
         }
-        let role:Role = Role::from_str_case_insensitive(parts[0].trim()).expect_alt("Invalid target role");
+        let role:Role = Role::from_str(parts[0].trim()).expect_alt("Invalid target role");
         let distance = parts[1].trim().parse().expect("Invalid distance");
         Box::new(RoleDistanceStatement { role, distance })
     } else {
         panic!("Unknown statement type: {}", s)
-    }
-}
-
-trait CaseInsensitiveFromStr {
-    fn from_str_case_insensitive(s: &str) -> Result<Self, String> where Self: Sized;
-}
-
-impl CaseInsensitiveFromStr for Role {
-    fn from_str_case_insensitive(s: &str) -> Result<Self, String> {
-        let s_lower = s.to_ascii_lowercase();
-        match s_lower.as_str() {
-            // Map string to enum, fail if unknown
-            "confessor" => Ok(Role::Confessor),
-            "empress" => Ok(Role::Empress),
-            "enlightened" => Ok(Role::Enlightened),
-            "gemcrafter" => Ok(Role::Gemcrafter),
-            "hunter" => Ok(Role::Hunter),
-            "jester" => Ok(Role::Jester),
-            "judge" => Ok(Role::Judge),
-            "knight" => Ok(Role::Knight),
-            "lover" => Ok(Role::Lover),
-            "medium" => Ok(Role::Medium),
-            "scout" => Ok(Role::Scout),
-            "wretch" => Ok(Role::Wretch),
-            "bombardier" => Ok(Role::Bombardier),
-            "minion" => Ok(Role::Minion),
-            "poisoner" => Ok(Role::Poisoner),
-            "twinminion" => Ok(Role::TwinMinion),
-            "witch" => Ok(Role::Witch),
-            "baa" => Ok(Role::Baa),
-            _ => Err(format!("Unknown role: {}", s)),
-        }
     }
 }
 
