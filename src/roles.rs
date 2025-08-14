@@ -1,8 +1,9 @@
 use std::any::Any;
 use std::fmt;
 use itertools::Itertools;
+use strum_macros::EnumIter;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub enum Role {
     // Villager
     Confessor,
