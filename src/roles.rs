@@ -435,7 +435,7 @@ pub fn produce_statements(
                                 .map(|&i| &true_roles[i])
                         );
 
-                        (0..=2)
+                        (0..=3)
                             .filter(|&fake_count| fake_count != evil_count)
                             .map(|fake_count| {
                                 Box::new(EvilCountStatement {
