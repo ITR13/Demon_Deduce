@@ -6,6 +6,7 @@ use strum_macros::EnumIter;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub enum Role {
     // Villager
+    Bard,
     Confessor,
     Empress,
     Enlightened,
@@ -60,7 +61,7 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout | Slayer => Group::Villager,
+            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout | Slayer => Group::Villager,
             Wretch | Bombardier => Group::Outcast,
             Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
@@ -69,14 +70,14 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => Alignment::Good,
+            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => Alignment::Good,
             Baa | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => false,
+            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => false,
             Baa | Minion | Poisoner | TwinMinion | Witch => true,
         }
     }
@@ -86,6 +87,7 @@ impl fmt::Display for Role {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Role::*;
         match self {
+            Bard => write!(f, "Bard"),
             Confessor => write!(f, "Confessor"),
             Empress => write!(f, "Empress"),
             Enlightened => write!(f, "Enlightened"),
@@ -402,6 +404,46 @@ pub fn closest_evil_distance(true_roles: &[Role], position: usize) -> usize {
         .unwrap_or(1)
 }
 
+// Bard Statement
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorruptDistanceStatement {
+    pub distance: Option<usize>,
+}
+
+impl fmt::Display for CorruptDistanceStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.distance {
+            Some(distance) => write!(f, "I am {} card{} away from a Corrupted character",
+                distance,
+                if distance == 1 { "" } else { "s" }),
+            None => write!(f, "There are no Corrupted characters"),
+        }
+    }
+}
+impl RoleStatement for CorruptDistanceStatement {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn equals(&self, other: &dyn RoleStatement) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<CorruptDistanceStatement>()
+            .map(|o| o == self)
+            .unwrap_or(false)
+    }
+}
+
+pub fn closest_corrupt_distance(corruptions: &[bool], position: usize) -> Option<usize> {
+    let max_distance = corruptions.len() / 2 + 1;
+
+    (1..=max_distance).find(|&distance| {
+        neighbor_indexes(corruptions.len(), position, distance)
+            .iter()
+            .any(|&i| corruptions[i])
+    })
+}
+
+
 /// Produce the typed statements a card can make given:
 /// - `visible_role`: what role is shown (may be a disguise)
 /// - `is_lying`: if the character should lie
@@ -412,10 +454,33 @@ pub fn produce_statements(
     is_lying: bool,
     true_roles: &[Role],
     disguised_roles: &[Role],
+    corruptions: &[bool],
     position: usize
 ) -> Vec<Box<dyn RoleStatement>> {
     if is_lying {
         return match visible_role {
+            Role::Bard => {
+                let max_index = (true_roles.len() + 1) / 2;
+                let closest_distance = closest_corrupt_distance(corruptions, position);
+
+                let mut statements: Vec<Box<dyn RoleStatement>> = (1..=max_index)
+                    .filter(|&i| Some(i) != closest_distance)
+                    .map(|i| {
+                        Box::new(CorruptDistanceStatement {
+                            distance: Some(i),
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect();
+
+                // Add the "no corruption" statement if there actually is a closest corruption
+                if closest_distance.is_some() {
+                    statements.push(Box::new(CorruptDistanceStatement {
+                        distance: None,
+                    }));
+                }
+
+                statements
+            },
             Role::Confessor => vec![Box::new(ConfessorStatement::IAmDizzy)],
             Role::Empress => {
                 let good = true_roles
@@ -596,6 +661,15 @@ pub fn produce_statements(
     }
 
     return match visible_role {
+        Role::Bard => {
+            let closest_distance = closest_corrupt_distance(corruptions, position);
+
+            vec![
+                Box::new(CorruptDistanceStatement {
+                    distance: closest_distance,
+                }) as Box<dyn RoleStatement>
+            ]
+        },
         Role::Confessor => vec![Box::new(ConfessorStatement::IAmGood)],
         Role::Enlightened => vec![Box::new(closest_evil_direction(true_roles, position)) as Box<dyn RoleStatement>],
         Role::Empress => {

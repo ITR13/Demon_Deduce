@@ -319,6 +319,7 @@ fn statements_match(
                     lying,
                     wretch_assign,
                     disguise_assign,
+                    corruption.as_slice(),
                     idx
                 );
 
