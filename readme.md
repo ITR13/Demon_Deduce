@@ -1,6 +1,6 @@
 # Demon Deduce
 
-This project is an automatic solver for the social deduction game (**Demon Bluff**)[https://store.steampowered.com/app/3522600/Demon_Bluff/].
+This project is an automatic solver for the social deduction game [**Demon Bluff**](https://store.steampowered.com/app/3522600/Demon_Bluff/).
 
 ## Command Line Usage
 
