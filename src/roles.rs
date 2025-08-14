@@ -17,6 +17,7 @@ pub enum Role {
     Lover,
     Medium,
     Scout,
+    Slayer,
     // Outcast
     Wretch,
     Bombardier,
@@ -59,7 +60,7 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout => Group::Villager,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout | Slayer => Group::Villager,
             Wretch | Bombardier => Group::Outcast,
             Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
@@ -68,14 +69,14 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout => Alignment::Good,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => Alignment::Good,
             Baa | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout => false,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout | Slayer => false,
             Baa | Minion | Poisoner | TwinMinion | Witch => true,
         }
     }
@@ -96,6 +97,7 @@ impl fmt::Display for Role {
             Lover => write!(f, "Lover"),
             Medium => write!(f, "Medium"),
             Scout => write!(f, "Scout"),
+            Slayer => write!(f, "Slayer"),
             Bombardier => write!(f, "Bombardier"),
             Wretch => write!(f, "Wretch"),
             Minion => write!(f, "Minion"),
@@ -568,6 +570,22 @@ pub fn produce_statements(
                             .collect::<Vec<_>>()
                     })
                     .collect()
+                }
+            Role::Slayer => {
+                // Claim all cards as good no matter what
+                let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, _)| {
+                        Box::new(ClaimStatement {
+                            target_index: idx,
+                            claim_type: ClaimType::Good,
+                        }) as Box<dyn RoleStatement>
+                    })
+                    .collect();
+            statements.push(Box::new(UnrevealedStatement));
+
+            statements
             }
             Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
             other => panic!(
@@ -699,6 +717,22 @@ pub fn produce_statements(
                     }) as Box<dyn RoleStatement>
                 })
                 .collect()
+        }
+        Role::Slayer => {
+            // Claim all good cards or evil cards as their alignment
+            let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+                .iter()
+                .enumerate()
+                .map(|(idx, r)| {
+                    Box::new(ClaimStatement {
+                        target_index: idx,
+                        claim_type: if r.alignment() == Alignment::Good { ClaimType::Good } else { ClaimType::Evil },
+                    }) as Box<dyn RoleStatement>
+                })
+                .collect();
+            statements.push(Box::new(UnrevealedStatement));
+
+            statements
         }
         Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
         other => panic!(
