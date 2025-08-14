@@ -4,6 +4,7 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
+colored = "3.0.0"
 eframe = "0.31.1"
 egui = "0.31.1"
 inventory = "0.3.20"

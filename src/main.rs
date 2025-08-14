@@ -1,5 +1,6 @@
 use demon_deduce::{brute_force_solve, Role};
 use demon_deduce::roles::*;
+use colored::*;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -97,8 +98,40 @@ fn run_solver_and_print(
     let sols = brute_force_solve(deck, visible, confirmed, observed, villagers, minions, demons, outcasts);
 
     println!("Found {} solution(s)", sols.len());
-    for s in sols {
-        println!("{:?}", s);
+
+    for s in &sols {
+        let line: Vec<String> = s.iter()
+            .map(|role| color_by_alignment(*role))
+            .collect();
+        println!("{}", line.join(", "));
+    }
+
+    println!("\nPossible roles per position:");
+    for (i, _) in sols[0].iter().enumerate() {
+        // Collect all roles that appear at this position across all solutions
+        let mut possible_roles: Vec<Role> = sols.iter().map(|sol| sol[i]).collect();
+        possible_roles.sort();
+        possible_roles.dedup();
+        let line: Vec<String> = possible_roles.into_iter()
+            .map(|role| color_by_group(role))
+            .collect();
+        println!("Position {}: {}", i, line.join(", "));
+    }
+}
+
+fn color_by_alignment(role: Role) -> String {
+    match role.alignment() {
+        Alignment::Good => format!("{}", format!("{:?}", role).green()),
+        Alignment::Evil => format!("{}", format!("{:?}", role).red()),
+    }
+}
+
+fn color_by_group(role: Role) -> String {
+    match role.group() {
+        Group::Villager => format!("{}", format!("{:?}", role).green()),
+        Group::Outcast => format!("{}", format!("{:?}", role).yellow()),
+        Group::Minion => format!("{}", format!("{:?}", role).red()),
+        Group::Demon => format!("{}", format!("{:?}", role).bright_red()),
     }
 }
 
