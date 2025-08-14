@@ -88,14 +88,16 @@ pub fn brute_force_solve(
                             0,
                             &mut |full_wretch_assign: &[Role], full_disguise_assign: &[Role]| {
                                 // If the resulting seating matches all observed statements, keep it
-                                if statements_match(
+                                let success = statements_match(
                                     candidate,
                                     full_wretch_assign,
                                     full_disguise_assign,
                                     observed_statements,
-                                ) {
+                                );
+                                if success {
                                     valid.push(candidate.to_vec());
                                 }
+                                success
                             },
                         );
                     },
@@ -203,7 +205,6 @@ fn permute_multiset<F>(
         current.push(k);
 
         permute_multiset(counts, keys, current, target_len, process);
-
         // Restore state after exploring this branch
         current.pop();
         counts.insert(k, cnt);
@@ -227,13 +228,12 @@ fn assign_disguises_and_check<F>(
     disguise_assign: &mut Vec<Role>,
     pos: usize,
     on_complete: &mut F,
-) where
-    F: FnMut(&[Role], &[Role]),
+) -> bool where
+    F: FnMut(&[Role], &[Role]) -> bool,
 {
     let n = candidate.len();
     if pos == n {
-        on_complete(wretch_assign.as_slice(), disguise_assign.as_slice());
-        return;
+        return on_complete(wretch_assign.as_slice(), disguise_assign.as_slice());
     }
 
     for &w_choice in &wretch_choices[pos] {
@@ -248,7 +248,7 @@ fn assign_disguises_and_check<F>(
             }
 
             disguise_assign.push(d_choice);
-            assign_disguises_and_check(
+            let success = assign_disguises_and_check(
                 candidate,
                 wretch_choices,
                 disguise_choices,
@@ -259,10 +259,15 @@ fn assign_disguises_and_check<F>(
                 on_complete,
             );
             disguise_assign.pop();
+            if success {
+                wretch_assign.pop();
+                return true;
+            }
         }
 
         wretch_assign.pop();
     }
+    return false;
 }
 
 fn statements_match(
