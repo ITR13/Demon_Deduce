@@ -15,6 +15,7 @@ pub enum Role {
     Knight,
     Lover,
     Medium,
+    Scout,
     // Outcast
     Wretch,
     Bombardier,
@@ -41,7 +42,7 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium => Group::Villager,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout => Group::Villager,
             Wretch | Bombardier => Group::Outcast,
             Minion | TwinMinion | Witch => Group::Minion,
         }
@@ -49,14 +50,14 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch => Alignment::Good,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout => Alignment::Good,
             Minion | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch => false,
+            Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout => false,
             Minion | TwinMinion | Witch => true,
         }
     }
@@ -76,6 +77,7 @@ impl fmt::Display for Role {
             Knight => write!(f, "Knight"),
             Lover => write!(f, "Lover"),
             Medium => write!(f, "Medium"),
+            Scout => write!(f, "Scout"),
             Bombardier => write!(f, "Bombardier"),
             Wretch => write!(f, "Wretch"),
             Minion => write!(f, "Minion"),
@@ -344,6 +346,29 @@ pub fn closest_evil_direction(true_roles: &[Role], position: usize) -> Enlighten
     EnlightenedStatement::Equidistant
 }
 
+// Scout Statement
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoleDistanceStatement {
+    pub role: Role,
+    pub distance: usize,
+}
+impl fmt::Display for RoleDistanceStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} is {} card away from closest Evil", self.role, self.distance)
+    }
+}
+impl RoleStatement for RoleDistanceStatement {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn equals(&self, other: &dyn RoleStatement) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<RoleDistanceStatement>()
+            .map(|o| o == self)
+            .unwrap_or(false)
+    }
+}
 
 pub fn closest_evil_distance(true_roles: &[Role], position: usize) -> usize {
     let max_index = (true_roles.len() + 1) / 2;
@@ -504,6 +529,28 @@ pub fn produce_statements(
                     })
                     .collect()
             }
+            Role::Scout => {
+                // Claim all evil roles as the wrong distance from their closest evil
+                let max_index = (true_roles.len() + 1) / 2;
+
+                true_roles
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, r)| r.alignment() == Alignment::Evil)
+                    .flat_map(|(idx, r)| {
+                        let distance = closest_evil_distance(true_roles, idx);
+                        (1..=max_index)
+                            .filter(|&i| i != distance)
+                            .map(|i| {
+                                Box::new(RoleDistanceStatement {
+                                    role: *r,
+                                    distance: i,
+                                }) as Box<dyn RoleStatement>
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect()
+            }
             Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
             other => panic!(
                 "produce_statements: unsupported role combination: true={:?}, visible={:?}",
@@ -616,6 +663,21 @@ pub fn produce_statements(
                     Box::new(RoleClaimStatement {
                         target_index: idx,
                         role: *r,
+                    }) as Box<dyn RoleStatement>
+                })
+                .collect()
+        },
+        Role::Scout => {
+            // Claim all evil roles as the distance from their closest evil
+            true_roles
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| r.alignment() == Alignment::Evil)
+                .map(|(idx, r)| {
+                    let distance = closest_evil_distance(true_roles, idx);
+                    Box::new(RoleDistanceStatement {
+                        role: *r,
+                        distance: distance,
                     }) as Box<dyn RoleStatement>
                 })
                 .collect()
