@@ -19,10 +19,12 @@ pub enum Role {
     // Outcast
     Wretch,
     Bombardier,
-    // Evil
+    // Minion
     Minion,
     TwinMinion,
     Witch,
+    // Demon
+    Baa,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -30,6 +32,7 @@ pub enum Group {
     Villager,
     Outcast,
     Minion,
+    Demon,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -45,20 +48,21 @@ impl Role {
             Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout => Group::Villager,
             Wretch | Bombardier => Group::Outcast,
             Minion | TwinMinion | Witch => Group::Minion,
+            Baa => Group::Demon,
         }
     }
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
             Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout => Alignment::Good,
-            Minion | TwinMinion | Witch => Alignment::Evil,
+            Baa | Minion | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
             Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout => false,
-            Minion | TwinMinion | Witch => true,
+            Baa | Minion | TwinMinion | Witch => true,
         }
     }
 }
@@ -80,6 +84,7 @@ impl fmt::Display for Role {
             Scout => write!(f, "Scout"),
             Bombardier => write!(f, "Bombardier"),
             Wretch => write!(f, "Wretch"),
+            Baa => write!(f, "Baa"),
             Minion => write!(f, "Minion"),
             TwinMinion => write!(f, "TwinMinion"),
             Witch => write!(f, "Witch"),

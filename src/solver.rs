@@ -10,6 +10,7 @@ pub fn brute_force_solve(
     villagers: usize,
     outcasts: usize,
     minions: usize,
+    demons: usize,
 ) -> Vec<Vec<Role>> {
     assert_eq!(
         visible_roles.len(),
@@ -19,14 +20,13 @@ pub fn brute_force_solve(
     let n = visible_roles.len();
 
     // Pre-generate all possible role group combinations based on counts requested
-    let (villager_combos, outcast_combos, minion_combos) =
-        generate_role_combinations(deck, villagers, outcasts, minions);
+    let (villager_combos, outcast_combos, minion_combos, demon_combos) =
+        generate_role_combinations(deck, villagers, outcasts, minions, demons);
 
     // Wretch needs to be replaced with any minion from the deck — precompute choices
     let deck_minion_choices: Vec<Role> = deck
         .iter()
         .copied()
-        .unique()
         .filter(|r| r.group() == Group::Minion)
         .collect();
 
@@ -34,7 +34,6 @@ pub fn brute_force_solve(
     let deck_non_evil_choices: Vec<Role> = deck
         .iter()
         .copied()
-        .unique()
         .filter(|r| r.alignment() != Alignment::Evil)
         .collect();
 
@@ -46,62 +45,77 @@ pub fn brute_force_solve(
 
     // Try every possible combination of villagers, minions, and outcasts
     for v_combo in &villager_combos {
+        let deck_villager_not_in_play_choices: Vec<Role> = deck
+            .iter()
+            .copied()
+            .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
+            .collect();
+
         for m_combo in &minion_combos {
             for o_combo in &outcast_combos {
-                let combined = collect_roles(v_combo, m_combo, o_combo);
+                for d_combo in &demon_combos {
+                    let combined: Vec<_> = v_combo
+                        .iter()
+                        .chain(m_combo.iter())
+                        .chain(o_combo.iter())
+                        .chain(d_combo.iter())
+                        .copied()
+                        .collect();
 
-                // Prepare role counts for multiset permutation generation
-                let mut counts: HashMap<Role, usize> = HashMap::new();
-                for &r in &combined {
-                    *counts.entry(r).or_insert(0) += 1;
+                    // Prepare role counts for multiset permutation generation
+                    let mut counts: HashMap<Role, usize> = HashMap::new();
+                    for &r in &combined {
+                        *counts.entry(r).or_insert(0) += 1;
+                    }
+
+                    let keys: Vec<Role> = counts.keys().copied().collect();
+
+                    // Generate all seat permutations of this role multiset
+                    permute_multiset(
+                        &mut counts,
+                        &keys,
+                        &mut perm_current,
+                        n,
+                        &mut |candidate: &[Role]| {
+                            // Immediately discard if known confirmed roles don’t match
+                            if !confirmed_roles_ok(candidate, confirmed_roles) {
+                                return;
+                            }
+
+                            // Build possible Wretch replacements and minion disguises for each seat
+                            let (wretch_choices, disguise_choices) = build_choices(
+                                candidate,
+                                &deck_minion_choices,
+                                &deck_non_evil_choices,
+                                &deck_villager_not_in_play_choices,
+                            );
+
+                            // DFS through every possible Wretch assignment + disguise mapping
+                            assign_disguises_and_check(
+                                candidate,
+                                &wretch_choices,
+                                &disguise_choices,
+                                visible_roles,
+                                &mut wretch_assign,
+                                &mut disguise_assign,
+                                0,
+                                &mut |full_wretch_assign: &[Role], full_disguise_assign: &[Role]| {
+                                    // If the resulting seating matches all observed statements, keep it
+                                    let success = statements_match(
+                                        candidate,
+                                        full_wretch_assign,
+                                        full_disguise_assign,
+                                        observed_statements,
+                                    );
+                                    if success {
+                                        valid.push(candidate.to_vec());
+                                    }
+                                    success
+                                },
+                            );
+                        },
+                    );
                 }
-
-                let keys: Vec<Role> = counts.keys().copied().collect();
-
-                // Generate all seat permutations of this role multiset
-                permute_multiset(
-                    &mut counts,
-                    &keys,
-                    &mut perm_current,
-                    n,
-                    &mut |candidate: &[Role]| {
-                        // Immediately discard if known confirmed roles don’t match
-                        if !confirmed_roles_ok(candidate, confirmed_roles) {
-                            return;
-                        }
-
-                        // Build possible Wretch replacements and minion disguises for each seat
-                        let (wretch_choices, disguise_choices) = build_choices(
-                            candidate,
-                            &deck_minion_choices,
-                            &deck_non_evil_choices,
-                        );
-
-                        // DFS through every possible Wretch assignment + disguise mapping
-                        assign_disguises_and_check(
-                            candidate,
-                            &wretch_choices,
-                            &disguise_choices,
-                            visible_roles,
-                            &mut wretch_assign,
-                            &mut disguise_assign,
-                            0,
-                            &mut |full_wretch_assign: &[Role], full_disguise_assign: &[Role]| {
-                                // If the resulting seating matches all observed statements, keep it
-                                let success = statements_match(
-                                    candidate,
-                                    full_wretch_assign,
-                                    full_disguise_assign,
-                                    observed_statements,
-                                );
-                                if success {
-                                    valid.push(candidate.to_vec());
-                                }
-                                success
-                            },
-                        );
-                    },
-                );
             }
         }
     }
@@ -113,11 +127,13 @@ fn build_choices(
     candidate: &[Role],
     deck_minion_choices: &[Role],
     deck_non_evil_choices: &[Role],
+    deck_villager_not_in_play_choices: &[Role],
 ) -> (Vec<Vec<Role>>, Vec<Vec<Role>>) {
     let mut wretch_choices = Vec::with_capacity(candidate.len());
     let mut disguise_choices = Vec::with_capacity(candidate.len());
 
     for &r in candidate {
+        // Wretch choices
         wretch_choices.push(if r == Role::Wretch {
             // Wretch's "true role" is always some minion
             deck_minion_choices.to_vec()
@@ -125,12 +141,17 @@ fn build_choices(
             vec![r]
         });
 
-        disguise_choices.push(if r.group() == Group::Minion {
-            // Minions can appear as any non-evil role
+        // Disguise choices
+        let group = r.group();
+        let choices = if group == Group::Demon {
+            deck_villager_not_in_play_choices.to_vec()
+        } else if group == Group::Minion {
             deck_non_evil_choices.to_vec()
         } else {
             vec![r]
-        });
+        };
+
+        disguise_choices.push(choices);
     }
 
     (wretch_choices, disguise_choices)
@@ -141,15 +162,19 @@ fn generate_role_combinations(
     villagers: usize,
     outcasts: usize,
     minions: usize,
-) -> (Vec<Vec<Role>>, Vec<Vec<Role>>, Vec<Vec<Role>>) {
-    // Partition deck into groups for combination generation
+    demons: usize,
+) -> (Vec<Vec<Role>>, Vec<Vec<Role>>, Vec<Vec<Role>>, Vec<Vec<Role>>) {
+    // Partition deck by group
     let (villager_roles, others): (Vec<Role>, Vec<Role>) =
         deck.iter().cloned().partition(|r| r.group() == Group::Villager);
 
-    let (outcast_roles, minion_roles): (Vec<Role>, Vec<Role>) =
+    let (outcast_roles, others): (Vec<Role>, Vec<Role>) =
         others.into_iter().partition(|r| r.group() == Group::Outcast);
 
-    // Generate all ways to pick the exact number of each group type
+    let (minion_roles, demon_roles): (Vec<Role>, Vec<Role>) =
+        others.into_iter().partition(|r| r.group() == Group::Minion);
+
+    // Generate combinations for each group
     let villager_combos: Vec<Vec<Role>> = villager_roles
         .iter()
         .combinations(villagers)
@@ -168,16 +193,13 @@ fn generate_role_combinations(
         .map(|combo| combo.into_iter().copied().collect())
         .collect();
 
-    (villager_combos, outcast_combos, minion_combos)
-}
-
-fn collect_roles(v_combo: &[Role], m_combo: &[Role], o_combo: &[Role]) -> Vec<Role> {
-    v_combo
+    let demon_combos: Vec<Vec<Role>> = demon_roles
         .iter()
-        .chain(m_combo.iter())
-        .chain(o_combo.iter())
-        .copied()
-        .collect()
+        .combinations(demons)
+        .map(|combo| combo.into_iter().copied().collect())
+        .collect();
+
+    (villager_combos, outcast_combos, minion_combos, demon_combos)
 }
 
 fn permute_multiset<F>(
