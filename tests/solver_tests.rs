@@ -508,6 +508,31 @@ fn test_confirmed() {
         solutions
     );
 }
+
+#[test]
+fn test_scout() {
+    use Role::*;
+    let deck = vec![Scout, Empress, Judge, Enlightened, Jester, Wretch, Witch];
+    let visible = vec![Some(Wretch), Some(Empress), None, Some(Jester), Some(Scout), Some(Enlightened)];
+    let confirmed = vec![None; visible.len()];
+    let observed: Vec<Box<dyn RoleStatement>> = vec![
+        Box::new(UnrevealedStatement),
+        Box::new(EvilCountStatement { target_indexes: vec![2, 3, 4], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(UnrevealedStatement),
+        Box::new(UnrevealedStatement),
+        Box::new(RoleDistanceStatement{role:Witch, distance:3}),
+        Box::new(EnlightenedStatement::Clockwise),
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 1, 1, 0);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[3]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
     assert!(
         !solutions.is_empty(),
         "No matching solution found. Solutions: {:#?}",
