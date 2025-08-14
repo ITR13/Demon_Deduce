@@ -1,6 +1,7 @@
 use crate::roles::*;
 use itertools::Itertools;
 use std::collections::HashMap;
+use itertools::izip;
 
 pub fn brute_force_solve(
     deck: &[Role],
@@ -101,6 +102,7 @@ pub fn brute_force_solve(
                                 0,
                                 &mut |full_wretch_assign: &[Role], full_disguise_assign: &[Role]| {
                                     // If the resulting seating matches all observed statements, keep it
+
                                     let success = statements_match(
                                         candidate,
                                         full_wretch_assign,
@@ -298,16 +300,74 @@ fn statements_match(
     disguise_assign: &[Role],
     observed_statements: &[Box<dyn RoleStatement>],
 ) -> bool {
-    for (idx, (&true_role, &vis_role)) in candidate.iter().zip(disguise_assign.iter()).enumerate() {
-        // Generate every statement that could be made by this seat
-        let possible_statements =
-            produce_statements(true_role, Some(vis_role), wretch_assign, disguise_assign, idx);
+    // NB: This makes us lose corruption data! A proper solution would consider the corruptions separately
+    let corrupt_permutations = execute_corruption(candidate, wretch_assign);
 
-        // If none of the possible statements match the observed one, reject candidate
-        let obs = &observed_statements[idx];
-        if !possible_statements.iter().any(|ps| obs.equals(ps.as_ref())) {
-            return false;
+    'corruption_loop: for corruption in corrupt_permutations {
+        for (idx, (&true_role, &vis_role, is_corrupt)) in izip!(candidate.iter(), disguise_assign.iter(), corruption.iter()).enumerate() {
+            let obs = &observed_statements[idx];
+            if obs.equals(&UnrevealedStatement) {
+                continue;
+            }
+
+            let lying = true_role.lying() || *is_corrupt;
+
+            // Generate every statement that could be made by this card
+            let possible_statements =
+                produce_statements(
+                    vis_role,
+                    lying,
+                    wretch_assign,
+                    disguise_assign,
+                    idx
+                );
+
+            // If none of the possible statements match the observed one, reject candidate
+            if !possible_statements.iter().any(|ps| obs.equals(ps.as_ref())) {
+                continue 'corruption_loop;
+            }
+        }
+        // All statements matched
+        return true;
+    }
+    // All corruption permutationed had some statement that didn't match
+    return false;
+}
+
+
+fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bool>> {
+    let len = true_roles.len();
+    let mut poison_options: Vec<Vec<usize>> = Vec::new();
+
+    // Step 1: Collect eligible targets for each poisoner
+    for (i, &role) in true_roles.iter().enumerate() {
+        match role {
+            Role::Poisoner => {
+                let neighbors = neighbor_indexes(len, i, 1);
+                let eligible: Vec<usize> = neighbors
+                    .into_iter()
+                    .filter(|&n| wretch_assign[n].group() == Group::Villager)
+                    .collect();
+                poison_options.push(eligible);
+            }
+            _ => {}
         }
     }
-    true
+
+    fn combine(poison_options: &[Vec<usize>], idx: usize, current: &mut Vec<bool>, result: &mut Vec<Vec<bool>>) {
+        if idx == poison_options.len() {
+            result.push(current.clone());
+            return;
+        }
+        for &target in &poison_options[idx] {
+            let mut next = current.clone();
+            next[target] = true;
+            combine(poison_options, idx + 1, &mut next, result);
+        }
+    }
+
+    let mut result = Vec::new();
+    combine(&poison_options, 0, &mut vec![false; len], &mut result);
+
+    result
 }

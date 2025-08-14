@@ -22,6 +22,7 @@ pub enum Role {
     Bombardier,
     // Minion
     Minion,
+    Poisoner,
     TwinMinion,
     Witch,
     // Demon
@@ -60,7 +61,7 @@ impl Role {
         match self {
             Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Scout => Group::Villager,
             Wretch | Bombardier => Group::Outcast,
-            Minion | TwinMinion | Witch => Group::Minion,
+            Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
         }
     }
@@ -68,14 +69,14 @@ impl Role {
         use Role::*;
         match self {
             Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout => Alignment::Good,
-            Baa | Minion | TwinMinion | Witch => Alignment::Evil,
+            Baa | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
             Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge | Knight | Lover | Medium | Bombardier | Wretch | Scout => false,
-            Baa | Minion | TwinMinion | Witch => true,
+            Baa | Minion | Poisoner | TwinMinion | Witch => true,
         }
     }
 }
@@ -97,10 +98,11 @@ impl fmt::Display for Role {
             Scout => write!(f, "Scout"),
             Bombardier => write!(f, "Bombardier"),
             Wretch => write!(f, "Wretch"),
-            Baa => write!(f, "Baa"),
             Minion => write!(f, "Minion"),
+            Poisoner => write!(f, "Poisoner"),
             TwinMinion => write!(f, "TwinMinion"),
             Witch => write!(f, "Witch"),
+            Baa => write!(f, "Baa"),
         }
     }
 }
@@ -135,7 +137,7 @@ impl Clone for Box<dyn RoleStatement> {
 }
 
 /// Cards not yet revealed have no statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnrevealedStatement;
 
 impl fmt::Display for UnrevealedStatement {
@@ -149,9 +151,12 @@ impl RoleStatement for UnrevealedStatement {
         self
     }
 
-    /// Always true - matches any statement
-    fn equals(&self, _other: &dyn RoleStatement) -> bool {
-        true
+    fn equals(&self, other: &dyn RoleStatement) -> bool {
+        other
+            .as_any()
+            .downcast_ref::<UnrevealedStatement>()
+            .map(|o| o == self)
+            .unwrap_or(false)
     }
 }
 
@@ -282,7 +287,7 @@ impl RoleStatement for EvilCountStatement {
     }
 }
 
-fn neighbor_indexes(len: usize, position: usize, offset: usize) -> Vec<usize> {
+pub fn neighbor_indexes(len: usize, position: usize, offset: usize) -> Vec<usize> {
     vec![
         (position + len - offset) % len,
         (position + offset) % len,
@@ -396,24 +401,19 @@ pub fn closest_evil_distance(true_roles: &[Role], position: usize) -> usize {
 }
 
 /// Produce the typed statements a card can make given:
-/// - `true_role`: the role it really is from the deck
-/// - `visible_role`: what role is shown (may be a disguise, or unrevealed)
+/// - `visible_role`: what role is shown (may be a disguise)
+/// - `is_lying`: if the character should lie
 /// - `true_roles`: the true roles of all the cards in play
 /// - `position`: the index of the speaking card
 pub fn produce_statements(
-    true_role: Role,
-    visible_role: Option<Role>,
+    visible_role: Role,
+    is_lying: bool,
     true_roles: &[Role],
     disguised_roles: &[Role],
     position: usize
 ) -> Vec<Box<dyn RoleStatement>> {
-    // If the card is unrevealed, we don't produce any info beyond UnrevealedStatement
-    if visible_role.is_none() {
-        return vec![Box::new(UnrevealedStatement)];
-    }
-
-    if true_role.lying() {
-        return match visible_role.unwrap() {
+    if is_lying {
+        return match visible_role {
             Role::Confessor => vec![Box::new(ConfessorStatement::IAmDizzy)],
             Role::Empress => {
                 let good = true_roles
@@ -571,13 +571,13 @@ pub fn produce_statements(
             }
             Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
             other => panic!(
-                "produce_statements: unsupported role combination: true={:?}, visible={:?}",
-                true_role, other
+                "produce_statements: unsupported role combination: visible={:?}, lying={:?}",
+                other, is_lying
             ),
         };
     }
 
-    return match visible_role.unwrap() {
+    return match visible_role {
         Role::Confessor => vec![Box::new(ConfessorStatement::IAmGood)],
         Role::Enlightened => vec![Box::new(closest_evil_direction(true_roles, position)) as Box<dyn RoleStatement>],
         Role::Empress => {
@@ -703,7 +703,7 @@ pub fn produce_statements(
         Role::Wretch | Role::Bombardier | Role::Knight => vec![Box::new(UnrevealedStatement)],
         other => panic!(
             "produce_statements: unsupported role combination: true={:?}, visible={:?}",
-            true_role, other
+            visible_role, other
         ),
     }
 }
