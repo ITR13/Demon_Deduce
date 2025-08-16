@@ -1,6 +1,6 @@
-use demon_deduce::{brute_force_solve, Role};
-use demon_deduce::roles::*;
 use colored::*;
+use demon_deduce::roles::*;
+use demon_deduce::{brute_force_solve, Role};
 use std::panic::Location;
 use std::str::FromStr;
 
@@ -17,7 +17,9 @@ fn main() {
         };
 
     // Run the solver with parsed input
-    run_solver_and_print(&deck, &visible, &confirmed, &observed, villagers, minions, demons, outcasts);
+    run_solver_and_print(
+        &deck, &visible, &confirmed, &observed, villagers, minions, demons, outcasts,
+    );
 }
 
 fn parse_input(
@@ -73,17 +75,21 @@ fn parse_input(
         });
 
         // Default to UnrevealedStatement if statement is missing or unknown
-        observed.push(if parts.len() <= 2
-            || parts[2].eq_ignore_ascii_case("?")
-            || parts[2].eq_ignore_ascii_case("unrevealed")
-        {
-            Box::new(UnrevealedStatement) as Box<dyn RoleStatement>
-        } else {
-            parse_statement_case_insensitive(parts[2])
-        });
+        observed.push(
+            if parts.len() <= 2
+                || parts[2].eq_ignore_ascii_case("?")
+                || parts[2].eq_ignore_ascii_case("unrevealed")
+            {
+                Box::new(UnrevealedStatement) as Box<dyn RoleStatement>
+            } else {
+                parse_statement_case_insensitive(parts[2])
+            },
+        );
     }
 
-    Ok((deck, visible, confirmed, observed, villagers, minions, demons, outcasts))
+    Ok((
+        deck, visible, confirmed, observed, villagers, minions, demons, outcasts,
+    ))
 }
 
 fn run_solver_and_print(
@@ -97,20 +103,19 @@ fn run_solver_and_print(
     outcasts: usize,
 ) {
     // Solve all valid assignments and collect solutions
-    let sols = brute_force_solve(deck, visible, confirmed, observed, villagers, minions, demons, outcasts);
+    let sols = brute_force_solve(
+        deck, visible, confirmed, observed, villagers, minions, demons, outcasts,
+    );
 
     if sols.len() == 0 {
         println!("No solutions found.");
         return;
     }
 
-
     println!("Found {} solution(s)", sols.len());
 
     for s in &sols {
-        let line: Vec<String> = s.iter()
-            .map(|role| color_by_alignment(*role))
-            .collect();
+        let line: Vec<String> = s.iter().map(|role| color_by_alignment(*role)).collect();
         println!("{}", line.join(", "));
     }
 
@@ -120,7 +125,8 @@ fn run_solver_and_print(
         let mut possible_roles: Vec<Role> = sols.iter().map(|sol| sol[i]).collect();
         possible_roles.sort();
         possible_roles.dedup();
-        let line: Vec<String> = possible_roles.into_iter()
+        let line: Vec<String> = possible_roles
+            .into_iter()
             .map(|role| color_by_group(role))
             .collect();
         println!("Position {}: {}", i, line.join(", "));
@@ -151,10 +157,15 @@ fn parse_roles(s: &str) -> Result<Vec<Role>, strum::ParseError> {
         })
         .collect::<Result<Vec<_>, _>>() // stop at first error
 }
-
 fn parse_statement_case_insensitive(s: &str) -> Box<dyn RoleStatement> {
     let s_lower = s.to_ascii_lowercase();
     let s_clean = s_lower.trim();
+
+    fn parse_target_indexes(s: &str) -> Vec<usize> {
+        s.split(',')
+            .map(|s| s.trim().parse().expect_alt("Invalid target index"))
+            .collect()
+    }
 
     // Determine type of statement based on prefix
     if s_clean.starts_with("clockwise") {
@@ -167,52 +178,115 @@ fn parse_statement_case_insensitive(s: &str) -> Box<dyn RoleStatement> {
         Box::new(ConfessorStatement::IAmGood)
     } else if s_clean.starts_with("iamdizzy") {
         Box::new(ConfessorStatement::IAmDizzy)
-    } else if s_clean.starts_with("claim[") {
-        // Split claim statement into target and type
-        let parts: Vec<&str> = s_clean.trim_start_matches("claim[").trim_end_matches(']').split(';').collect();
+    } else if s_clean.starts_with("bard[") {
+        let content = s_clean.trim_start_matches("bard[").trim_end_matches(']');
+        let distance = if content == "none" {
+            None
+        } else {
+            Some(
+                content
+                    .parse()
+                    .expect_alt("Invalid distance for BardStatement"),
+            )
+        };
+        Box::new(BardStatement { distance })
+    } else if s_clean.starts_with("empress[") {
+        let content = s_clean.trim_start_matches("empress[").trim_end_matches(']');
+        let target_indexes = parse_target_indexes(content);
+        Box::new(EmpressStatement { target_indexes })
+    } else if s_clean.starts_with("gemcrafter[") {
+        let content = s_clean
+            .trim_start_matches("gemcrafter[")
+            .trim_end_matches(']');
+        let target_index = content.parse().expect_alt("Invalid target index");
+        Box::new(GemcrafterStatement { target_index })
+    } else if s_clean.starts_with("hunter[") {
+        let content = s_clean.trim_start_matches("hunter[").trim_end_matches(']');
+        let distance = content.parse().expect_alt("Invalid distance");
+        Box::new(HunterStatement { distance })
+    } else if s_clean.starts_with("jester[") {
+        let parts: Vec<&str> = s_clean
+            .trim_start_matches("jester[")
+            .trim_end_matches(']')
+            .split(';')
+            .collect();
         if parts.len() != 2 {
-            panic!("Invalid Claim statement format: {}", s);
+            panic!("Invalid Jester statement format: {}", s);
+        }
+        let target_indexes = parse_target_indexes(parts[0]);
+        let evil_count = parts[1].trim().parse().expect_alt("Invalid evil count");
+        Box::new(JesterStatement {
+            target_indexes,
+            evil_count,
+        })
+    } else if s_clean.starts_with("judge[") {
+        let parts: Vec<&str> = s_clean
+            .trim_start_matches("judge[")
+            .trim_end_matches(']')
+            .split(';')
+            .collect();
+        if parts.len() != 2 {
+            panic!("Invalid Judge statement format: {}", s);
         }
         let target_index = parts[0].parse().expect_alt("Invalid target index");
-        let claim_type = match parts[1].trim() {
-            "good" => ClaimType::Good,
-            "evil" => ClaimType::Evil,
-            "truthy" => ClaimType::Truthy,
-            "lying" => ClaimType::Lying,
+        let is_lying = match parts[1].trim() {
+            "truthy" => false,
+            "lying" => true,
             _ => panic!("Unknown claim type: {}", parts[1]),
         };
-        Box::new(ClaimStatement { target_index, claim_type })
-    } else if s_clean.starts_with("evilcount[") {
-        let parts: Vec<&str> = s_clean.trim_start_matches("evilcount[").trim_end_matches(']').split(';').collect();
-        if parts.len() < 2 {
-            panic!("Invalid EvilCount statement format: {}", s);
-        }
-
-        // Allow multiple targets, parse optional fields with defaults
-        let target_indexes = parts[0].split(',')
-            .map(|s| s.trim().parse().expect_alt("Invalid target index"))
+        Box::new(JudgeStatement {
+            target_index,
+            is_lying,
+        })
+    } else if s_clean.starts_with("lover[") {
+        let content = s_clean.trim_start_matches("lover[").trim_end_matches(']');
+        let evil_count = content.parse().expect_alt("Invalid evil count");
+        Box::new(LoverStatement { evil_count })
+    } else if s_clean.starts_with("medium[") {
+        let parts: Vec<&str> = s_clean
+            .trim_start_matches("medium[")
+            .trim_end_matches(']')
+            .split(';')
             .collect();
-        let evil_count = parts[1].trim().parse().expect_alt("Invalid evil count");
-        let minimum = if parts.len() > 2 { parts[2].trim().parse().unwrap_or(false) } else { false };
-        let none_closer = if parts.len() > 3 { parts[3].trim().parse().unwrap_or(false) } else { false };
-
-        Box::new(EvilCountStatement { target_indexes, evil_count, minimum, none_closer })
-    } else if s_clean.starts_with("roleclaim[") {
-        let parts: Vec<&str> = s_clean.trim_start_matches("roleclaim[").trim_end_matches(']').split(';').collect();
         if parts.len() != 2 {
-            panic!("Invalid RoleClaim statement format: {}", s);
+            panic!("Invalid Medium statement format: {}", s);
         }
         let target_index = parts[0].trim().parse().expect_alt("Invalid target index");
-        let role:Role = Role::from_str(parts[1].trim()).expect_alt("Invalid target role");
-        Box::new(RoleClaimStatement { target_index, role })
-    } else if s_clean.starts_with("roledistance[") {
-        let parts: Vec<&str> = s_clean.trim_start_matches("roledistance[").trim_end_matches(']').split(';').collect();
+        let role: Role = parts[1].trim().parse().expect_alt("Invalid target role");
+        Box::new(MediumStatement { target_index, role })
+    } else if s_clean.starts_with("scout[") {
+        let parts: Vec<&str> = s_clean
+            .trim_start_matches("scout[")
+            .trim_end_matches(']')
+            .split(';')
+            .collect();
         if parts.len() != 2 {
-            panic!("Invalid RoleDistance statement format: {}", s);
+            panic!("Invalid Scout statement format: {}", s);
         }
-        let role:Role = Role::from_str(parts[0].trim()).expect_alt("Invalid target role");
-        let distance = parts[1].trim().parse().expect("Invalid distance");
-        Box::new(RoleDistanceStatement { role, distance })
+        let role: Role = parts[0].trim().parse().expect_alt("Invalid target role");
+        let distance = parts[1].trim().parse().expect_alt("Invalid distance");
+        Box::new(ScoutStatement { role, distance })
+    } else if s_clean.starts_with("slayer[") {
+        let parts: Vec<&str> = s_clean
+            .trim_start_matches("slayer[")
+            .trim_end_matches(']')
+            .split(';')
+            .collect();
+        if parts.len() != 2 {
+            panic!("Invalid Slayer statement format: {}", s);
+        }
+        let target_index = parts[0].parse().expect_alt("Invalid target index");
+        let alignment = match parts[1].trim() {
+            "good" => Alignment::Good,
+            "evil" => Alignment::Evil,
+            _ => panic!("Unknown alignment: {}", parts[1]),
+        };
+        Box::new(SlayerStatement {
+            target_index,
+            alignment,
+        })
+    } else if s_clean == "unrevealed" {
+        Box::new(UnrevealedStatement)
     } else {
         panic!("Unknown statement type: {}", s)
     }

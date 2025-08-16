@@ -1,7 +1,7 @@
 use crate::roles::*;
+use itertools::izip;
 use itertools::Itertools;
 use std::collections::HashMap;
-use itertools::izip;
 
 pub fn brute_force_solve(
     deck: &[Role],
@@ -165,13 +165,21 @@ fn generate_role_combinations(
     outcasts: usize,
     minions: usize,
     demons: usize,
-) -> (Vec<Vec<Role>>, Vec<Vec<Role>>, Vec<Vec<Role>>, Vec<Vec<Role>>) {
+) -> (
+    Vec<Vec<Role>>,
+    Vec<Vec<Role>>,
+    Vec<Vec<Role>>,
+    Vec<Vec<Role>>,
+) {
     // Partition deck by group
-    let (villager_roles, others): (Vec<Role>, Vec<Role>) =
-        deck.iter().cloned().partition(|r| r.group() == Group::Villager);
+    let (villager_roles, others): (Vec<Role>, Vec<Role>) = deck
+        .iter()
+        .cloned()
+        .partition(|r| r.group() == Group::Villager);
 
-    let (outcast_roles, others): (Vec<Role>, Vec<Role>) =
-        others.into_iter().partition(|r| r.group() == Group::Outcast);
+    let (outcast_roles, others): (Vec<Role>, Vec<Role>) = others
+        .into_iter()
+        .partition(|r| r.group() == Group::Outcast);
 
     let (minion_roles, demon_roles): (Vec<Role>, Vec<Role>) =
         others.into_iter().partition(|r| r.group() == Group::Minion);
@@ -252,7 +260,8 @@ fn assign_disguises_and_check<F>(
     disguise_assign: &mut Vec<Role>,
     pos: usize,
     on_complete: &mut F,
-) -> bool where
+) -> bool
+where
     F: FnMut(&[Role], &[Role]) -> bool,
 {
     let n = candidate.len();
@@ -304,7 +313,9 @@ fn statements_match(
     let corrupt_permutations = execute_corruption(candidate, wretch_assign);
 
     'corruption_loop: for corruption in corrupt_permutations {
-        for (idx, (&true_role, &vis_role, is_corrupt)) in izip!(candidate.iter(), disguise_assign.iter(), corruption.iter()).enumerate() {
+        for (idx, (&true_role, &vis_role, is_corrupt)) in
+            izip!(candidate.iter(), disguise_assign.iter(), corruption.iter()).enumerate()
+        {
             let obs = &observed_statements[idx];
             if obs.equals(&UnrevealedStatement) {
                 continue;
@@ -313,15 +324,14 @@ fn statements_match(
             let lying = true_role.lying() || *is_corrupt;
 
             // Generate every statement that could be made by this card
-            let possible_statements =
-                produce_statements(
-                    vis_role,
-                    lying,
-                    wretch_assign,
-                    disguise_assign,
-                    corruption.as_slice(),
-                    idx
-                );
+            let possible_statements = produce_statements(
+                vis_role,
+                lying,
+                wretch_assign,
+                disguise_assign,
+                corruption.as_slice(),
+                idx,
+            );
 
             // If none of the possible statements match the observed one, reject candidate
             if !possible_statements.iter().any(|ps| obs.equals(ps.as_ref())) {
@@ -334,7 +344,6 @@ fn statements_match(
     // All corruption permutationed had some statement that didn't match
     return false;
 }
-
 
 fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bool>> {
     let len = true_roles.len();
@@ -364,7 +373,12 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
         }
     }
 
-    fn combine(poison_options: &[Vec<usize>], idx: usize, current: &mut Vec<bool>, result: &mut Vec<Vec<bool>>) {
+    fn combine(
+        poison_options: &[Vec<usize>],
+        idx: usize,
+        current: &mut Vec<bool>,
+        result: &mut Vec<Vec<bool>>,
+    ) {
         if idx == poison_options.len() {
             result.push(current.clone());
             return;

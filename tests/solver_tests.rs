@@ -1,5 +1,5 @@
-use demon_deduce::{brute_force_solve, Role};
 use demon_deduce::roles::*;
+use demon_deduce::{brute_force_solve, Role};
 use std::boxed::Box;
 
 #[test]
@@ -18,7 +18,10 @@ fn finds_minion_with_typed_statements() {
     ];
     let sols = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0);
     assert_eq!(sols.len(), 1);
-    assert_eq!(sols[0], vec![Role::Confessor, Role::Confessor, Role::Minion]);
+    assert_eq!(
+        sols[0],
+        vec![Role::Confessor, Role::Confessor, Role::Minion]
+    );
 }
 
 fn is_evil(role: &Role) -> bool {
@@ -61,7 +64,10 @@ fn example_with_claim_statement() {
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
-        Box::new(ClaimStatement { target_index: 0, claim_type: ClaimType::Evil }),
+        Box::new(JudgeStatement {
+            target_index: 0,
+            is_lying: true,
+        }),
         Box::new(ConfessorStatement::IAmDizzy),
     ];
 
@@ -72,12 +78,7 @@ fn example_with_claim_statement() {
 fn test_iam_good_iam_dizzy_unrevealed() {
     let deck = vec![Role::Confessor, Role::Confessor, Role::Minion];
 
-    // visible: None where observed is UnrevealedStatement (index 2)
-    let visible = vec![
-        Some(Role::Confessor),
-        Some(Role::Confessor),
-        None,
-    ];
+    let visible = vec![Some(Role::Confessor), Some(Role::Confessor), None];
     let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
@@ -105,11 +106,7 @@ fn test_iam_good_iam_dizzy_unrevealed() {
 fn test_iam_good_iam_good_unrevealed() {
     let deck = vec![Role::Confessor, Role::Confessor, Role::Minion];
 
-    let visible = vec![
-        Some(Role::Confessor),
-        Some(Role::Confessor),
-        None,
-    ];
+    let visible = vec![Some(Role::Confessor), Some(Role::Confessor), None];
     let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
@@ -137,16 +134,12 @@ fn test_iam_good_iam_good_unrevealed() {
 fn test_iam_good_claim_1_is_good_unrevealed() {
     let deck = vec![Role::Confessor, Role::Gemcrafter, Role::Minion];
 
-    let visible = vec![
-        Some(Role::Confessor),
-        Some(Role::Gemcrafter),
-        None,
-    ];
+    let visible = vec![Some(Role::Confessor), Some(Role::Gemcrafter), None];
     let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(ConfessorStatement::IAmGood),
-        Box::new(ClaimStatement { target_index: 0, claim_type: ClaimType::Good }),
+        Box::new(GemcrafterStatement { target_index: 0 }),
         Box::new(UnrevealedStatement),
     ];
 
@@ -168,20 +161,20 @@ fn test_iam_good_claim_1_is_good_unrevealed() {
 
 #[test]
 fn test_lover_lover_unrevealed_minion_unrevealed() {
-    let deck = vec![Role::Lover, Role::Lover, Role::Confessor, Role::Confessor, Role::Minion];
-
-    let visible = vec![
-        Some(Role::Lover),
-        Some(Role::Lover),
-        None,
-        None,
-        None,
+    let deck = vec![
+        Role::Lover,
+        Role::Lover,
+        Role::Confessor,
+        Role::Confessor,
+        Role::Minion,
     ];
+
+    let visible = vec![Some(Role::Lover), Some(Role::Lover), None, None, None];
     let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 0, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(LoverStatement { evil_count: 0 }),
+        Box::new(LoverStatement { evil_count: 0 }),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
@@ -205,20 +198,20 @@ fn test_lover_lover_unrevealed_minion_unrevealed() {
 
 #[test]
 fn test_lover_lover_unrevealed_unrevealed_minion() {
-    let deck = vec![Role::Lover, Role::Lover, Role::Confessor, Role::Confessor, Role::Minion];
-
-    let visible = vec![
-        Some(Role::Lover),
-        Some(Role::Lover),
-        None,
-        None,
-        None,
+    let deck = vec![
+        Role::Lover,
+        Role::Lover,
+        Role::Confessor,
+        Role::Confessor,
+        Role::Minion,
     ];
+
+    let visible = vec![Some(Role::Lover), Some(Role::Lover), None, None, None];
     let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(LoverStatement { evil_count: 1 }),
+        Box::new(LoverStatement { evil_count: 0 }),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
@@ -253,9 +246,9 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
     let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![1, 3], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![1, 3], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(LoverStatement { evil_count: 1 }),
+        Box::new(LoverStatement { evil_count: 1 }),
+        Box::new(LoverStatement { evil_count: 0 }),
         Box::new(UnrevealedStatement),
     ];
 
@@ -277,7 +270,13 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
 
 #[test]
 fn test_empress_empress_empress() {
-    let deck = vec![Role::Empress, Role::Empress, Role::Empress, Role::Empress, Role::Minion];
+    let deck = vec![
+        Role::Empress,
+        Role::Empress,
+        Role::Empress,
+        Role::Empress,
+        Role::Minion,
+    ];
 
     let visible = vec![
         Some(Role::Empress),
@@ -289,11 +288,21 @@ fn test_empress_empress_empress() {
     let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![1, 2, 3], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 3, 4], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 3, 4], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 1, 4], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 1, 2], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EmpressStatement {
+            target_indexes: vec![1, 2, 3],
+        }),
+        Box::new(EmpressStatement {
+            target_indexes: vec![0, 3, 4],
+        }),
+        Box::new(EmpressStatement {
+            target_indexes: vec![0, 3, 4],
+        }),
+        Box::new(EmpressStatement {
+            target_indexes: vec![0, 1, 4],
+        }),
+        Box::new(EmpressStatement {
+            target_indexes: vec![0, 1, 2],
+        }),
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0);
@@ -314,7 +323,14 @@ fn test_empress_empress_empress() {
 
 #[test]
 fn test_hunter_lover() {
-    let deck = vec![Role::Hunter, Role::Lover, Role::Confessor, Role::Confessor, Role::Confessor, Role::Minion];
+    let deck = vec![
+        Role::Hunter,
+        Role::Lover,
+        Role::Confessor,
+        Role::Confessor,
+        Role::Confessor,
+        Role::Minion,
+    ];
 
     let visible = vec![
         Some(Role::Hunter),
@@ -327,8 +343,8 @@ fn test_hunter_lover() {
     let confirmed = vec![None; visible.len()];
 
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![3, 3], evil_count: 1, minimum: true, none_closer: true}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(HunterStatement { distance: 3 }),
+        Box::new(LoverStatement { evil_count: 0 }),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
@@ -350,15 +366,31 @@ fn test_hunter_lover() {
         solutions
     );
 }
+
 #[test]
 fn test_enlightened() {
-    let deck = vec![Role::Judge, Role::Hunter, Role::Confessor, Role::Lover, Role::Gemcrafter, Role::Enlightened, Role::Minion];
-    let visible = vec![Some(Role::Gemcrafter), Some(Role::Enlightened), Some(Role::Lover), None, None, None];
+    let deck = vec![
+        Role::Judge,
+        Role::Hunter,
+        Role::Confessor,
+        Role::Lover,
+        Role::Gemcrafter,
+        Role::Enlightened,
+        Role::Minion,
+    ];
+    let visible = vec![
+        Some(Role::Gemcrafter),
+        Some(Role::Enlightened),
+        Some(Role::Lover),
+        None,
+        None,
+        None,
+    ];
     let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(ClaimStatement{target_index: 2, claim_type: ClaimType::Good}),
+        Box::new(GemcrafterStatement { target_index: 2 }),
         Box::new(EnlightenedStatement::Equidistant),
-        Box::new(EvilCountStatement { target_indexes: vec![1, 3], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(LoverStatement { evil_count: 0 }),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
@@ -379,19 +411,38 @@ fn test_enlightened() {
         solutions
     );
 }
+
 #[test]
 fn test_wretch() {
-    let deck = vec![Role::Hunter, Role::Empress, Role::Lover, Role::Gemcrafter, Role::Confessor, Role::Wretch, Role::Minion];
-    let visible = vec![Some(Role::Empress), Some(Role::Lover), Some(Role::Confessor), None, Some(Role::Lover), None, Some(Role::Hunter)];
+    let deck = vec![
+        Role::Hunter,
+        Role::Empress,
+        Role::Lover,
+        Role::Gemcrafter,
+        Role::Confessor,
+        Role::Wretch,
+        Role::Minion,
+    ];
+    let visible = vec![
+        Some(Role::Empress),
+        Some(Role::Lover),
+        Some(Role::Confessor),
+        None,
+        Some(Role::Lover),
+        None,
+        Some(Role::Hunter),
+    ];
     let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement { target_indexes: vec![5, 2, 3], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(EvilCountStatement { target_indexes: vec![0, 2], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(EmpressStatement {
+            target_indexes: vec![5, 2, 3],
+        }),
+        Box::new(LoverStatement { evil_count: 0 }),
         Box::new(ConfessorStatement::IAmGood),
         Box::new(UnrevealedStatement),
-        Box::new(EvilCountStatement { target_indexes: vec![3, 5], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(LoverStatement { evil_count: 0 }),
         Box::new(UnrevealedStatement),
-        Box::new(EvilCountStatement { target_indexes: vec![1, 4], evil_count: 1, minimum: true, none_closer: true}),
+        Box::new(HunterStatement { distance: 2 }),
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 1, 0);
@@ -409,18 +460,42 @@ fn test_wretch() {
         solutions
     );
 }
+
 #[test]
 fn test_twin_and_medium() {
     use Role::*;
-    let deck = vec![Judge, Lover, Gemcrafter, Enlightened, Medium, Wretch, Minion, TwinMinion];
-    let visible = vec![Some(Medium), Some(Judge), Some(Gemcrafter), Some(Lover), Some(Gemcrafter), None, None];
+    let deck = vec![
+        Judge,
+        Lover,
+        Gemcrafter,
+        Enlightened,
+        Medium,
+        Wretch,
+        Minion,
+        TwinMinion,
+    ];
+    let visible = vec![
+        Some(Medium),
+        Some(Judge),
+        Some(Gemcrafter),
+        Some(Lover),
+        Some(Gemcrafter),
+        None,
+        None,
+    ];
     let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(RoleClaimStatement{target_index: 2, role: Gemcrafter}),
-        Box::new(ClaimStatement{target_index: 0, claim_type: ClaimType::Lying}),
-        Box::new(ClaimStatement{target_index: 0, claim_type: ClaimType::Good}),
-        Box::new(EvilCountStatement{target_indexes: vec![2,4], evil_count: 1, minimum: false, none_closer: false}),
-        Box::new(ClaimStatement{target_index: 3, claim_type: ClaimType::Good}),
+        Box::new(MediumStatement {
+            target_index: 2,
+            role: Gemcrafter,
+        }),
+        Box::new(JudgeStatement {
+            target_index: 0,
+            is_lying: true,
+        }),
+        Box::new(GemcrafterStatement { target_index: 0 }),
+        Box::new(LoverStatement { evil_count: 1 }),
+        Box::new(GemcrafterStatement { target_index: 3 }),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
     ];
@@ -445,20 +520,35 @@ fn test_twin_and_medium() {
         solutions
     );
 }
+
 #[test]
 fn test_jester() {
     use Role::*;
-    let deck = vec![Gemcrafter, Jester, Empress, Hunter, Lover, Wretch, Minion, TwinMinion];
-    let visible = vec![Some(Jester), None, Some(Lover), None, None, Some(Hunter), Some(Lover), None];
+    let deck = vec![
+        Gemcrafter, Jester, Empress, Hunter, Lover, Wretch, Minion, TwinMinion,
+    ];
+    let visible = vec![
+        Some(Jester),
+        None,
+        Some(Lover),
+        None,
+        None,
+        Some(Hunter),
+        Some(Lover),
+        None,
+    ];
     let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(EvilCountStatement{target_indexes: vec![0,2,5], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(JesterStatement {
+            target_indexes: vec![0, 2, 5],
+            evil_count: 1,
+        }),
         Box::new(UnrevealedStatement),
-        Box::new(EvilCountStatement{target_indexes: vec![1,3], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(LoverStatement { evil_count: 1 }),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
-        Box::new(EvilCountStatement{target_indexes: vec![1,1], evil_count: 1, minimum: true, none_closer: true}),
-        Box::new(EvilCountStatement{target_indexes: vec![5,7], evil_count: 0, minimum: false, none_closer: false}),
+        Box::new(HunterStatement { distance: 4 }),
+        Box::new(LoverStatement { evil_count: 0 }),
         Box::new(UnrevealedStatement),
     ];
 
@@ -482,16 +572,15 @@ fn test_jester() {
         solutions
     );
 }
+
 #[test]
 fn test_confirmed() {
     use Role::*;
     let deck = vec![Knight, Minion];
     let visible = vec![Some(Knight), Some(Knight)];
     let confirmed = vec![Some(Knight), None];
-    let observed: Vec<Box<dyn RoleStatement>> = vec![
-        Box::new(UnrevealedStatement),
-        Box::new(UnrevealedStatement),
-    ];
+    let observed: Vec<Box<dyn RoleStatement>> =
+        vec![Box::new(UnrevealedStatement), Box::new(UnrevealedStatement)];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 1, 0, 1, 0);
     for solution in &solutions {
@@ -513,14 +602,26 @@ fn test_confirmed() {
 fn test_scout() {
     use Role::*;
     let deck = vec![Scout, Empress, Judge, Enlightened, Jester, Wretch, Witch];
-    let visible = vec![Some(Wretch), Some(Empress), None, Some(Jester), Some(Scout), Some(Enlightened)];
+    let visible = vec![
+        Some(Wretch),
+        Some(Empress),
+        None,
+        Some(Jester),
+        Some(Scout),
+        Some(Enlightened),
+    ];
     let confirmed = vec![None; visible.len()];
     let observed: Vec<Box<dyn RoleStatement>> = vec![
         Box::new(UnrevealedStatement),
-        Box::new(EvilCountStatement { target_indexes: vec![2, 3, 4], evil_count: 1, minimum: false, none_closer: false}),
+        Box::new(EmpressStatement {
+            target_indexes: vec![2, 3, 4],
+        }),
         Box::new(UnrevealedStatement),
         Box::new(UnrevealedStatement),
-        Box::new(RoleDistanceStatement{role:Witch, distance:3}),
+        Box::new(ScoutStatement {
+            role: Witch,
+            distance: 3,
+        }),
         Box::new(EnlightenedStatement::Clockwise),
     ];
 
