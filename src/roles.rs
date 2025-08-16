@@ -1,7 +1,9 @@
 use itertools::Itertools;
-use std::any::Any;
 use std::fmt;
 use strum_macros::{Display, EnumIter, EnumString};
+use bitvec::prelude::*;
+
+type TargetIndexes = BitArray<[u8; 2], Lsb0>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter, EnumString, Display)]
 #[strum(serialize_all = "lowercase")]
@@ -90,58 +92,226 @@ impl Role {
             Baa | Minion | Poisoner | TwinMinion | Witch => true,
         }
     }
-}
+    pub fn parse_statement(&self, s: &str) -> RoleStatement {
+        fn parse_indexes(s: &str) -> TargetIndexes {
+            let mut bits =  TargetIndexes::default();
 
-/// Trait type for typed statements coming from roles.
-/// Implementors should be `Clone` + `Debug` + 'static so we can clone and downcast them.
-pub trait RoleStatement: RoleStatementClone + fmt::Debug + Send + Sync {
-    /// For downcasting
-    fn as_any(&self) -> &dyn Any;
+            for idx_str in s.split(',') {
+                let idx: usize = idx_str.trim().parse().expect("Invalid index");
+                bits.set(idx, true);
+            }
 
-    /// Compare this statement with another RoleStatement.
-    /// Implementations should attempt a downcast and return true only if types & payloads match.
-    fn equals(&self, other: &dyn RoleStatement) -> bool;
-}
+            bits
+        }
 
-/// Helper trait to allow cloning Box<dyn RoleStatement>
-pub trait RoleStatementClone {
-    fn clone_box(&self) -> Box<dyn RoleStatement>;
-}
-impl<T> RoleStatementClone for T
-where
-    T: 'static + RoleStatement + Clone,
-{
-    fn clone_box(&self) -> Box<dyn RoleStatement> {
-        Box::new(self.clone())
+        match self {
+            Role::Bard => {
+                let distance = if s.trim() == "none" {
+                    None
+                } else {
+                    Some(s.trim().parse().expect("Invalid distance for BardStatement"))
+                };
+                RoleStatement::Bard(BardStatement { distance })
+            }
+            Role::Confessor => match s.trim() {
+                "iamgood" => RoleStatement::Confessor(ConfessorStatement::IAmGood),
+                "iamdizzy" => RoleStatement::Confessor(ConfessorStatement::IAmDizzy),
+                _ => panic!("Invalid Confessor statement: {}", s),
+            },
+            Role::Empress => {
+                let target_indexes = parse_indexes(s);
+                RoleStatement::Empress(EmpressStatement { target_indexes })
+            }
+            Role::Enlightened => match s.trim() {
+                "clockwise" => RoleStatement::Enlightened(EnlightenedStatement::Clockwise),
+                "counterclockwise" => {
+                    RoleStatement::Enlightened(EnlightenedStatement::CounterClockwise)
+                }
+                "equidistant" => RoleStatement::Enlightened(EnlightenedStatement::Equidistant),
+                _ => panic!("Invalid Enlightened statement: {}", s),
+            },
+            Role::Gemcrafter => {
+                let target_index = s.trim().parse().expect("Invalid target index");
+                RoleStatement::Gemcrafter(GemcrafterStatement { target_index })
+            }
+            Role::Hunter => {
+                let distance = s.trim().parse().expect("Invalid distance");
+                RoleStatement::Hunter(HunterStatement { distance })
+            }
+            Role::Jester => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    panic!("Invalid Jester statement: {}", s);
+                }
+                let target_indexes = parse_indexes(parts[0]);
+                let evil_count = parts[1].trim().parse().expect("Invalid evil count");
+                RoleStatement::Jester(JesterStatement {
+                    target_indexes,
+                    evil_count,
+                })
+            }
+            Role::Judge => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    panic!("Invalid Judge statement: {}", s);
+                }
+                let target_index = parts[0].trim().parse().expect("Invalid target index");
+                let is_lying = match parts[1].trim() {
+                    "truthy" => false,
+                    "lying" => true,
+                    _ => panic!("Unknown claim type: {}", parts[1]),
+                };
+                RoleStatement::Judge(JudgeStatement { target_index, is_lying })
+            }
+            Role::Lover => {
+                let evil_count = s.trim().parse().expect("Invalid evil count");
+                RoleStatement::Lover(LoverStatement { evil_count })
+            }
+            Role::Medium => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    panic!("Invalid Medium statement: {}", s);
+                }
+                let target_index = parts[0].trim().parse().expect("Invalid target index");
+                let role: Role = parts[1].trim().parse().expect("Invalid target role");
+                RoleStatement::Medium(MediumStatement { target_index, role })
+            }
+            Role::Scout => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    panic!("Invalid Scout statement: {}", s);
+                }
+                let role: Role = parts[0].trim().parse().expect("Invalid target role");
+                let distance = parts[1].trim().parse().expect("Invalid distance");
+                RoleStatement::Scout(ScoutStatement { role, distance })
+            }
+            Role::Slayer => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    panic!("Invalid Slayer statement: {}", s);
+                }
+                let target_index = parts[0].trim().parse().expect("Invalid target index");
+                let alignment = match parts[1].trim() {
+                    "good" => Alignment::Good,
+                    "evil" => Alignment::Evil,
+                    _ => panic!("Unknown alignment: {}", parts[1]),
+                };
+                RoleStatement::Slayer(SlayerStatement { target_index, alignment })
+            }
+            Role::Knight | Role::Bombardier | Role::PlagueDoctor | Role::Wretch
+            | Role::Minion | Role::Poisoner | Role::TwinMinion | Role::Witch | Role::Baa => {
+                panic!("No statement parsing implemented for {:?}", self)
+            }
+        }
     }
 }
-impl Clone for Box<dyn RoleStatement> {
-    fn clone(&self) -> Box<dyn RoleStatement> {
-        self.clone_box()
-    }
-}
 
-/// Cards not yet revealed have no statement
 #[derive(Debug, Clone, PartialEq)]
-pub struct UnrevealedStatement;
+pub enum RoleStatement {
+    Unrevealed,
+    Bard(BardStatement),
+    Confessor(ConfessorStatement),
+    Empress(EmpressStatement),
+    Enlightened(EnlightenedStatement),
+    Gemcrafter(GemcrafterStatement),
+    Hunter(HunterStatement),
+    Jester(JesterStatement),
+    Judge(JudgeStatement),
+    Lover(LoverStatement),
+    Medium(MediumStatement),
+    Scout(ScoutStatement),
+    Slayer(SlayerStatement),
+}
 
-impl fmt::Display for UnrevealedStatement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unrevealed")
+impl From<BardStatement> for RoleStatement {
+    fn from(statement: BardStatement) -> Self {
+        RoleStatement::Bard(statement)
     }
 }
 
-impl RoleStatement for UnrevealedStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl From<ConfessorStatement> for RoleStatement {
+    fn from(statement: ConfessorStatement) -> Self {
+        RoleStatement::Confessor(statement)
     }
+}
 
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<UnrevealedStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
+impl From<EmpressStatement> for RoleStatement {
+    fn from(statement: EmpressStatement) -> Self {
+        RoleStatement::Empress(statement)
+    }
+}
+
+impl From<EnlightenedStatement> for RoleStatement {
+    fn from(statement: EnlightenedStatement) -> Self {
+        RoleStatement::Enlightened(statement)
+    }
+}
+
+impl From<GemcrafterStatement> for RoleStatement {
+    fn from(statement: GemcrafterStatement) -> Self {
+        RoleStatement::Gemcrafter(statement)
+    }
+}
+
+impl From<HunterStatement> for RoleStatement {
+    fn from(statement: HunterStatement) -> Self {
+        RoleStatement::Hunter(statement)
+    }
+}
+
+impl From<JesterStatement> for RoleStatement {
+    fn from(statement: JesterStatement) -> Self {
+        RoleStatement::Jester(statement)
+    }
+}
+
+impl From<JudgeStatement> for RoleStatement {
+    fn from(statement: JudgeStatement) -> Self {
+        RoleStatement::Judge(statement)
+    }
+}
+
+impl From<LoverStatement> for RoleStatement {
+    fn from(statement: LoverStatement) -> Self {
+        RoleStatement::Lover(statement)
+    }
+}
+
+impl From<MediumStatement> for RoleStatement {
+    fn from(statement: MediumStatement) -> Self {
+        RoleStatement::Medium(statement)
+    }
+}
+
+impl From<ScoutStatement> for RoleStatement {
+    fn from(statement: ScoutStatement) -> Self {
+        RoleStatement::Scout(statement)
+    }
+}
+
+impl From<SlayerStatement> for RoleStatement {
+    fn from(statement: SlayerStatement) -> Self {
+        RoleStatement::Slayer(statement)
+    }
+}
+
+impl fmt::Display for RoleStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RoleStatement::Unrevealed => write!(f, "Unrevealed"),
+            RoleStatement::Bard(stmt) => stmt.fmt(f),
+            RoleStatement::Confessor(stmt) => stmt.fmt(f),
+            RoleStatement::Empress(stmt) => stmt.fmt(f),
+            RoleStatement::Enlightened(stmt) => stmt.fmt(f),
+            RoleStatement::Gemcrafter(stmt) => stmt.fmt(f),
+            RoleStatement::Hunter(stmt) => stmt.fmt(f),
+            RoleStatement::Jester(stmt) => stmt.fmt(f),
+            RoleStatement::Judge(stmt) => stmt.fmt(f),
+            RoleStatement::Lover(stmt) => stmt.fmt(f),
+            RoleStatement::Medium(stmt) => stmt.fmt(f),
+            RoleStatement::Scout(stmt) => stmt.fmt(f),
+            RoleStatement::Slayer(stmt) => stmt.fmt(f),
+        }
     }
 }
 
@@ -163,24 +333,13 @@ impl fmt::Display for BardStatement {
         }
     }
 }
-impl RoleStatement for BardStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<BardStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfessorStatement {
     IAmGood,
     IAmDizzy,
 }
+
 impl fmt::Display for ConfessorStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -189,51 +348,15 @@ impl fmt::Display for ConfessorStatement {
         }
     }
 }
-impl RoleStatement for ConfessorStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<ConfessorStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmpressStatement {
-    pub target_indexes: Vec<usize>,
+    pub target_indexes: TargetIndexes,
 }
-impl EmpressStatement {
-    fn unordered_indexes_eq(&self, other: &Self) -> bool {
-        let mut self_sorted = self.target_indexes.clone();
-        let mut other_sorted = other.target_indexes.clone();
 
-        self_sorted.sort_unstable();
-        other_sorted.sort_unstable();
-        self_sorted.dedup();
-        other_sorted.dedup();
-
-        self_sorted == other_sorted
-    }
-}
 impl fmt::Display for EmpressStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Among {:#?} there is 1 Evil", self.target_indexes)
-    }
-}
-impl RoleStatement for EmpressStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<EmpressStatement>()
-            .map(|o| self.unordered_indexes_eq(o))
-            .unwrap_or(false)
     }
 }
 
@@ -243,6 +366,7 @@ pub enum EnlightenedStatement {
     CounterClockwise,
     Equidistant,
 }
+
 impl EnlightenedStatement {
     fn iterator() -> impl Iterator<Item = EnlightenedStatement> {
         [
@@ -253,21 +377,10 @@ impl EnlightenedStatement {
         .into_iter()
     }
 }
+
 impl fmt::Display for EnlightenedStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Closest Evil is {}", self)
-    }
-}
-impl RoleStatement for EnlightenedStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<EnlightenedStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
     }
 }
 
@@ -275,21 +388,10 @@ impl RoleStatement for EnlightenedStatement {
 pub struct GemcrafterStatement {
     pub target_index: usize,
 }
+
 impl fmt::Display for GemcrafterStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{} is good", self.target_index)
-    }
-}
-impl RoleStatement for GemcrafterStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<GemcrafterStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
     }
 }
 
@@ -297,6 +399,7 @@ impl RoleStatement for GemcrafterStatement {
 pub struct HunterStatement {
     pub distance: usize,
 }
+
 impl fmt::Display for HunterStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -307,37 +410,13 @@ impl fmt::Display for HunterStatement {
         )
     }
 }
-impl RoleStatement for HunterStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<HunterStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JesterStatement {
-    pub target_indexes: Vec<usize>,
+    pub target_indexes: TargetIndexes,
     pub evil_count: usize,
 }
-impl JesterStatement {
-    fn unordered_indexes_eq(&self, other: &Self) -> bool {
-        let mut self_sorted = self.target_indexes.clone();
-        let mut other_sorted = other.target_indexes.clone();
 
-        self_sorted.sort_unstable();
-        other_sorted.sort_unstable();
-        self_sorted.dedup();
-        other_sorted.dedup();
-
-        self_sorted == other_sorted
-    }
-}
 impl fmt::Display for JesterStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -347,40 +426,17 @@ impl fmt::Display for JesterStatement {
         )
     }
 }
-impl RoleStatement for JesterStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<JesterStatement>()
-            .map(|o| self.unordered_indexes_eq(o) && self.evil_count == o.evil_count)
-            .unwrap_or(false)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JudgeStatement {
     pub target_index: usize,
     pub is_lying: bool,
 }
+
 impl fmt::Display for JudgeStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let claim_str = if self.is_lying { "Lying" } else { "Truthful" };
         write!(f, "#{} is {}", self.target_index, claim_str)
-    }
-}
-impl RoleStatement for JudgeStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<JudgeStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
     }
 }
 
@@ -388,21 +444,10 @@ impl RoleStatement for JudgeStatement {
 pub struct LoverStatement {
     pub evil_count: usize,
 }
+
 impl fmt::Display for LoverStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "There are {} Evil adjacent to me", self.evil_count)
-    }
-}
-impl RoleStatement for LoverStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<LoverStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
     }
 }
 
@@ -411,21 +456,10 @@ pub struct MediumStatement {
     pub target_index: usize,
     pub role: Role,
 }
+
 impl fmt::Display for MediumStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{} is {}", self.target_index, self.role)
-    }
-}
-impl RoleStatement for MediumStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<MediumStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
     }
 }
 
@@ -434,6 +468,7 @@ pub struct ScoutStatement {
     pub role: Role,
     pub distance: usize,
 }
+
 impl fmt::Display for ScoutStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -443,44 +478,29 @@ impl fmt::Display for ScoutStatement {
         )
     }
 }
-impl RoleStatement for ScoutStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<ScoutStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SlayerStatement {
     pub target_index: usize,
     pub alignment: Alignment,
 }
+
 impl fmt::Display for SlayerStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{} is {:?}", self.target_index, self.alignment)
     }
 }
-impl RoleStatement for SlayerStatement {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn equals(&self, other: &dyn RoleStatement) -> bool {
-        other
-            .as_any()
-            .downcast_ref::<SlayerStatement>()
-            .map(|o| o == self)
-            .unwrap_or(false)
-    }
-}
 
 pub fn neighbor_indexes(len: usize, position: usize, offset: usize) -> Vec<usize> {
     vec![(position + len - offset) % len, (position + offset) % len]
+}
+
+pub fn to_bitvec(indices: Vec<usize>) -> TargetIndexes {
+    let mut bits =  TargetIndexes::default();
+    for i in indices {
+        bits.set(i, true);
+    }
+    bits
 }
 
 fn count_evil<'a>(roles: impl IntoIterator<Item = &'a Role>) -> usize {
@@ -550,28 +570,26 @@ pub fn produce_statements(
     disguised_roles: &[Role],
     corruptions: &[bool],
     position: usize,
-) -> Vec<Box<dyn RoleStatement>> {
+) -> Vec<RoleStatement> {
     if is_lying {
         return match visible_role {
             Role::Bard => {
                 let max_index = (true_roles.len() + 1) / 2;
                 let closest_distance = closest_corrupt_distance(corruptions, position);
 
-                let mut statements: Vec<Box<dyn RoleStatement>> = (1..=max_index)
+                let mut statements: Vec<RoleStatement> = (1..=max_index)
                     .filter(|&i| Some(i) != closest_distance)
-                    .map(|i| {
-                        Box::new(BardStatement { distance: Some(i) }) as Box<dyn RoleStatement>
-                    })
+                    .map(|i| RoleStatement::Bard(BardStatement { distance: Some(i) }))
                     .collect();
 
                 // Add the "no corruption" statement if there actually is a closest corruption
                 if closest_distance.is_some() {
-                    statements.push(Box::new(BardStatement { distance: None }));
+                    statements.push(RoleStatement::Bard(BardStatement { distance: None }));
                 }
 
                 statements
             }
-            Role::Confessor => vec![Box::new(ConfessorStatement::IAmDizzy)],
+            Role::Confessor => vec![RoleStatement::Confessor(ConfessorStatement::IAmDizzy)],
             Role::Empress => {
                 let good = true_roles
                     .iter()
@@ -581,9 +599,9 @@ pub fn produce_statements(
                 good.combinations(3)
                     .map(move |triplet| {
                         let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
-                        Box::new(EmpressStatement {
-                            target_indexes: target_indexes,
-                        }) as Box<dyn RoleStatement>
+                        RoleStatement::Empress(EmpressStatement {
+                            target_indexes: to_bitvec(target_indexes),
+                        })
                     })
                     .collect()
             }
@@ -591,7 +609,7 @@ pub fn produce_statements(
                 let true_response = closest_evil_direction(true_roles, position);
                 EnlightenedStatement::iterator()
                     .filter(|&stmt| stmt != true_response)
-                    .map(|stmt| Box::new(stmt) as Box<dyn RoleStatement>)
+                    .map(|stmt| RoleStatement::Enlightened(stmt))
                     .collect()
             }
             Role::Gemcrafter => {
@@ -600,10 +618,7 @@ pub fn produce_statements(
                     .iter()
                     .enumerate()
                     .filter(|(_, r)| r.alignment() == Alignment::Evil)
-                    .map(|(idx, _)| {
-                        Box::new(GemcrafterStatement { target_index: idx })
-                            as Box<dyn RoleStatement>
-                    })
+                    .map(|(idx, _)| RoleStatement::Gemcrafter(GemcrafterStatement { target_index: idx }))
                     .collect()
             }
             Role::Hunter => {
@@ -612,7 +627,7 @@ pub fn produce_statements(
 
                 (1..=max_index)
                     .filter(|&i| i != index)
-                    .map(|i| Box::new(HunterStatement { distance: i }) as Box<dyn RoleStatement>)
+                    .map(|i| RoleStatement::Hunter(HunterStatement { distance: i }))
                     .collect()
             }
             Role::Jester => true_roles
@@ -622,31 +637,32 @@ pub fn produce_statements(
                 .flat_map(move |triplet| {
                     let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
                     let evil_count = count_evil(target_indexes.iter().map(|&i| &true_roles[i]));
+                    let targets = to_bitvec(target_indexes);
 
                     (0..=3)
                         .filter(|&fake_count| fake_count != evil_count)
                         .map(|fake_count| {
-                            Box::new(JesterStatement {
-                                target_indexes: target_indexes.clone(),
+                            RoleStatement::Jester(JesterStatement {
+                                target_indexes: targets,
                                 evil_count: fake_count,
-                            }) as Box<dyn RoleStatement>
+                            })
                         })
                         .collect::<Vec<_>>()
                 })
                 .collect(),
             Role::Judge => {
                 // Claim all lying cards are truthy, and truthy cards are lying
-                let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+                let mut statements: Vec<RoleStatement> = true_roles
                     .iter()
                     .enumerate()
                     .map(|(idx, r)| {
-                        Box::new(JudgeStatement {
+                        RoleStatement::Judge(JudgeStatement {
                             target_index: idx,
                             is_lying: r.lying(),
-                        }) as Box<dyn RoleStatement>
+                        })
                     })
                     .collect();
-                statements.push(Box::new(UnrevealedStatement));
+                statements.push(RoleStatement::Unrevealed);
                 statements
             }
             Role::Lover => {
@@ -659,9 +675,9 @@ pub fn produce_statements(
                 (0..=2)
                     .filter(|&fake_count| fake_count != real_evil_count)
                     .map(|fake_count| {
-                        Box::new(LoverStatement {
+                        RoleStatement::Lover(LoverStatement {
                             evil_count: fake_count,
-                        }) as Box<dyn RoleStatement>
+                        })
                     })
                     .collect()
             }
@@ -673,10 +689,10 @@ pub fn produce_statements(
                     .enumerate()
                     .filter(|(_, (r, d))| r != d)
                     .map(|(idx, (_, d))| {
-                        Box::new(MediumStatement {
+                        RoleStatement::Medium(MediumStatement {
                             target_index: idx,
                             role: *d,
-                        }) as Box<dyn RoleStatement>
+                        })
                     })
                     .collect()
             }
@@ -692,10 +708,10 @@ pub fn produce_statements(
                         (1..=max_index)
                             .filter(|&i| i != distance)
                             .map(|i| {
-                                Box::new(ScoutStatement {
+                                RoleStatement::Scout(ScoutStatement {
                                     role: *r,
                                     distance: i,
-                                }) as Box<dyn RoleStatement>
+                                })
                             })
                             .collect::<Vec<_>>()
                     })
@@ -703,22 +719,22 @@ pub fn produce_statements(
             }
             Role::Slayer => {
                 // Claim all cards as good no matter what
-                let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+                let mut statements: Vec<RoleStatement> = true_roles
                     .iter()
                     .enumerate()
                     .map(|(idx, _)| {
-                        Box::new(SlayerStatement {
+                        RoleStatement::Slayer(SlayerStatement {
                             target_index: idx,
                             alignment: Alignment::Good,
-                        }) as Box<dyn RoleStatement>
+                        })
                     })
                     .collect();
-                statements.push(Box::new(UnrevealedStatement));
+                statements.push(RoleStatement::Unrevealed);
                 statements
             }
             // TODO: PlagueDoctor
             Role::Bombardier | Role::Wretch | Role::PlagueDoctor | Role::Knight => {
-                vec![Box::new(UnrevealedStatement)]
+                vec![RoleStatement::Unrevealed]
             }
             other => panic!(
                 "produce_statements: unsupported role combination: visible={:?}, lying={:?}",
@@ -730,12 +746,12 @@ pub fn produce_statements(
     return match visible_role {
         Role::Bard => {
             let closest_distance = closest_corrupt_distance(corruptions, position);
-            vec![Box::new(BardStatement {
+            vec![RoleStatement::Bard(BardStatement {
                 distance: closest_distance,
             })]
         }
-        Role::Confessor => vec![Box::new(ConfessorStatement::IAmGood)],
-        Role::Enlightened => vec![Box::new(closest_evil_direction(true_roles, position))],
+        Role::Confessor => vec![RoleStatement::Confessor(ConfessorStatement::IAmGood)],
+        Role::Enlightened => vec![RoleStatement::Enlightened(closest_evil_direction(true_roles, position))],
         Role::Empress => {
             let (evil, good): (Vec<_>, Vec<_>) = true_roles
                 .iter()
@@ -746,9 +762,9 @@ pub fn produce_statements(
                 .flat_map(|(ei, _)| {
                     good.iter().combinations(2).map(move |pair| {
                         let target_indexes = vec![*ei, pair[0].0, pair[1].0];
-                        Box::new(EmpressStatement {
-                            target_indexes: target_indexes,
-                        }) as Box<dyn RoleStatement>
+                        RoleStatement::Empress(EmpressStatement {
+                            target_indexes: to_bitvec(target_indexes),
+                        })
                     })
                 })
                 .collect()
@@ -759,14 +775,12 @@ pub fn produce_statements(
                 .iter()
                 .enumerate()
                 .filter(|(_, r)| r.alignment() == Alignment::Good)
-                .map(|(idx, _)| {
-                    Box::new(GemcrafterStatement { target_index: idx }) as Box<dyn RoleStatement>
-                })
+                .map(|(idx, _)| RoleStatement::Gemcrafter(GemcrafterStatement { target_index: idx }))
                 .collect()
         }
         Role::Hunter => {
             let index = closest_evil_distance(true_roles, position);
-            vec![Box::new(HunterStatement { distance: index })]
+            vec![RoleStatement::Hunter(HunterStatement { distance: index })]
         }
         Role::Jester => true_roles
             .iter()
@@ -775,30 +789,31 @@ pub fn produce_statements(
             .map(move |triplet| {
                 let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
                 let evil_count = count_evil(target_indexes.iter().map(|&i| &true_roles[i]));
-                Box::new(JesterStatement {
-                    target_indexes: target_indexes.clone(),
+                let targets = to_bitvec(target_indexes);
+                RoleStatement::Jester(JesterStatement {
+                    target_indexes: targets,
                     evil_count: evil_count,
-                }) as Box<dyn RoleStatement>
+                })
             })
             .collect::<Vec<_>>(),
         Role::Judge => {
             // Claim all lying cards are lying, and truthy cards are truthy
-            let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+            let mut statements: Vec<RoleStatement> = true_roles
                 .iter()
                 .enumerate()
                 .map(|(idx, r)| {
-                    Box::new(JudgeStatement {
+                    RoleStatement::Judge(JudgeStatement {
                         target_index: idx,
                         is_lying: r.lying(),
-                    }) as Box<dyn RoleStatement>
+                    })
                 })
                 .collect();
-            statements.push(Box::new(UnrevealedStatement));
+            statements.push(RoleStatement::Unrevealed);
             statements
         }
         Role::Lover => {
             let evil_count = count_neighbor_evil(true_roles, position, 1);
-            vec![Box::new(LoverStatement {
+            vec![RoleStatement::Lover(LoverStatement {
                 evil_count: evil_count,
             })]
         }
@@ -809,10 +824,10 @@ pub fn produce_statements(
                 .enumerate()
                 .filter(|(_, r)| r.alignment() == Alignment::Good)
                 .map(|(idx, r)| {
-                    Box::new(MediumStatement {
+                    RoleStatement::Medium(MediumStatement {
                         target_index: idx,
                         role: *r,
-                    }) as Box<dyn RoleStatement>
+                    })
                 })
                 .collect()
         }
@@ -824,31 +839,31 @@ pub fn produce_statements(
                 .filter(|(_, r)| r.alignment() == Alignment::Evil)
                 .map(|(idx, r)| {
                     let distance = closest_evil_distance(true_roles, idx);
-                    Box::new(ScoutStatement {
+                    RoleStatement::Scout(ScoutStatement {
                         role: *r,
                         distance: distance,
-                    }) as Box<dyn RoleStatement>
+                    })
                 })
                 .collect()
         }
         Role::Slayer => {
             // Claim all good cards or evil cards as their alignment
-            let mut statements: Vec<Box<dyn RoleStatement>> = true_roles
+            let mut statements: Vec<RoleStatement> = true_roles
                 .iter()
                 .enumerate()
                 .map(|(idx, r)| {
-                    Box::new(SlayerStatement {
+                    RoleStatement::Slayer(SlayerStatement {
                         target_index: idx,
                         alignment: r.alignment(),
-                    }) as Box<dyn RoleStatement>
+                    })
                 })
                 .collect();
-            statements.push(Box::new(UnrevealedStatement));
+            statements.push(RoleStatement::Unrevealed);
             statements
         }
         // TODO: PlagueDoctor
         Role::Wretch | Role::PlagueDoctor | Role::Bombardier | Role::Knight => {
-            vec![Box::new(UnrevealedStatement)]
+            vec![RoleStatement::Unrevealed]
         }
         other => panic!(
             "produce_statements: unsupported role combination: true={:?}, visible={:?}",

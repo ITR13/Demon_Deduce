@@ -29,7 +29,7 @@ fn parse_input(
         Vec<Role>,
         Vec<Option<Role>>,
         Vec<Option<Role>>,
-        Vec<Box<dyn RoleStatement>>,
+        Vec<RoleStatement>,
         usize,
         usize,
         usize,
@@ -39,7 +39,7 @@ fn parse_input(
 > {
     if args.len() < 6 {
         return Err(format!(
-            "Usage: {} <deck> <villagers> <minions> <demons> <outcasts> [visible:confirmed:statement...]",
+            "Usage: {} <deck> <outcasts> <villagers> <minions> <demons> [visible:confirmed:statement...]",
             args[0]
         ));
     }
@@ -61,11 +61,12 @@ fn parse_input(
         let parts: Vec<&str> = card_arg.split(':').collect();
 
         // Use None if input is "?" to represent unknown roles
-        visible.push(if parts[0].eq_ignore_ascii_case("?") {
+        let role = if parts[0].eq_ignore_ascii_case("?") {
             None
         } else {
             Some(Role::from_str(parts[0]).expect_alt("Failed to parse visible"))
-        });
+        };
+        visible.push(role);
 
         // Confirmed roles might not be provided, handle gracefully
         confirmed.push(if parts.len() <= 1 || parts[1].eq_ignore_ascii_case("?") {
@@ -74,15 +75,15 @@ fn parse_input(
             Some(Role::from_str(parts[1]).expect_alt("Failed to parse confirmed"))
         });
 
-        // Default to UnrevealedStatement if statement is missing or unknown
+        // Default to Unrevealed if statement is missing or unknown
         observed.push(
             if parts.len() <= 2
                 || parts[2].eq_ignore_ascii_case("?")
                 || parts[2].eq_ignore_ascii_case("unrevealed")
             {
-                Box::new(UnrevealedStatement) as Box<dyn RoleStatement>
+                RoleStatement::Unrevealed
             } else {
-                parse_statement_case_insensitive(parts[2])
+                role.expect("Cannot provide statement of unrevealed role").parse_statement(parts[2])
             },
         );
     }
@@ -96,7 +97,7 @@ fn run_solver_and_print(
     deck: &[Role],
     visible: &[Option<Role>],
     confirmed: &[Option<Role>],
-    observed: &[Box<dyn RoleStatement>],
+    observed: &[RoleStatement],
     villagers: usize,
     minions: usize,
     demons: usize,
@@ -156,140 +157,6 @@ fn parse_roles(s: &str) -> Result<Vec<Role>, strum::ParseError> {
             Role::from_str(trimmed)
         })
         .collect::<Result<Vec<_>, _>>() // stop at first error
-}
-fn parse_statement_case_insensitive(s: &str) -> Box<dyn RoleStatement> {
-    let s_lower = s.to_ascii_lowercase();
-    let s_clean = s_lower.trim();
-
-    fn parse_target_indexes(s: &str) -> Vec<usize> {
-        s.split(',')
-            .map(|s| s.trim().parse().expect_alt("Invalid target index"))
-            .collect()
-    }
-
-    // Determine type of statement based on prefix
-    if s_clean.starts_with("clockwise") {
-        Box::new(EnlightenedStatement::Clockwise)
-    } else if s_clean.starts_with("counterclockwise") {
-        Box::new(EnlightenedStatement::CounterClockwise)
-    } else if s_clean.starts_with("equidistant") {
-        Box::new(EnlightenedStatement::Equidistant)
-    } else if s_clean.starts_with("iamgood") {
-        Box::new(ConfessorStatement::IAmGood)
-    } else if s_clean.starts_with("iamdizzy") {
-        Box::new(ConfessorStatement::IAmDizzy)
-    } else if s_clean.starts_with("bard[") {
-        let content = s_clean.trim_start_matches("bard[").trim_end_matches(']');
-        let distance = if content == "none" {
-            None
-        } else {
-            Some(
-                content
-                    .parse()
-                    .expect_alt("Invalid distance for BardStatement"),
-            )
-        };
-        Box::new(BardStatement { distance })
-    } else if s_clean.starts_with("empress[") {
-        let content = s_clean.trim_start_matches("empress[").trim_end_matches(']');
-        let target_indexes = parse_target_indexes(content);
-        Box::new(EmpressStatement { target_indexes })
-    } else if s_clean.starts_with("gemcrafter[") {
-        let content = s_clean
-            .trim_start_matches("gemcrafter[")
-            .trim_end_matches(']');
-        let target_index = content.parse().expect_alt("Invalid target index");
-        Box::new(GemcrafterStatement { target_index })
-    } else if s_clean.starts_with("hunter[") {
-        let content = s_clean.trim_start_matches("hunter[").trim_end_matches(']');
-        let distance = content.parse().expect_alt("Invalid distance");
-        Box::new(HunterStatement { distance })
-    } else if s_clean.starts_with("jester[") {
-        let parts: Vec<&str> = s_clean
-            .trim_start_matches("jester[")
-            .trim_end_matches(']')
-            .split(';')
-            .collect();
-        if parts.len() != 2 {
-            panic!("Invalid Jester statement format: {}", s);
-        }
-        let target_indexes = parse_target_indexes(parts[0]);
-        let evil_count = parts[1].trim().parse().expect_alt("Invalid evil count");
-        Box::new(JesterStatement {
-            target_indexes,
-            evil_count,
-        })
-    } else if s_clean.starts_with("judge[") {
-        let parts: Vec<&str> = s_clean
-            .trim_start_matches("judge[")
-            .trim_end_matches(']')
-            .split(';')
-            .collect();
-        if parts.len() != 2 {
-            panic!("Invalid Judge statement format: {}", s);
-        }
-        let target_index = parts[0].parse().expect_alt("Invalid target index");
-        let is_lying = match parts[1].trim() {
-            "truthy" => false,
-            "lying" => true,
-            _ => panic!("Unknown claim type: {}", parts[1]),
-        };
-        Box::new(JudgeStatement {
-            target_index,
-            is_lying,
-        })
-    } else if s_clean.starts_with("lover[") {
-        let content = s_clean.trim_start_matches("lover[").trim_end_matches(']');
-        let evil_count = content.parse().expect_alt("Invalid evil count");
-        Box::new(LoverStatement { evil_count })
-    } else if s_clean.starts_with("medium[") {
-        let parts: Vec<&str> = s_clean
-            .trim_start_matches("medium[")
-            .trim_end_matches(']')
-            .split(';')
-            .collect();
-        if parts.len() != 2 {
-            panic!("Invalid Medium statement format: {}", s);
-        }
-        let target_index = parts[0].trim().parse().expect_alt("Invalid target index");
-        let role: Role = parts[1].trim().parse().expect_alt("Invalid target role");
-        Box::new(MediumStatement { target_index, role })
-    } else if s_clean.starts_with("scout[") {
-        let parts: Vec<&str> = s_clean
-            .trim_start_matches("scout[")
-            .trim_end_matches(']')
-            .split(';')
-            .collect();
-        if parts.len() != 2 {
-            panic!("Invalid Scout statement format: {}", s);
-        }
-        let role: Role = parts[0].trim().parse().expect_alt("Invalid target role");
-        let distance = parts[1].trim().parse().expect_alt("Invalid distance");
-        Box::new(ScoutStatement { role, distance })
-    } else if s_clean.starts_with("slayer[") {
-        let parts: Vec<&str> = s_clean
-            .trim_start_matches("slayer[")
-            .trim_end_matches(']')
-            .split(';')
-            .collect();
-        if parts.len() != 2 {
-            panic!("Invalid Slayer statement format: {}", s);
-        }
-        let target_index = parts[0].parse().expect_alt("Invalid target index");
-        let alignment = match parts[1].trim() {
-            "good" => Alignment::Good,
-            "evil" => Alignment::Evil,
-            _ => panic!("Unknown alignment: {}", parts[1]),
-        };
-        Box::new(SlayerStatement {
-            target_index,
-            alignment,
-        })
-    } else if s_clean == "unrevealed" {
-        Box::new(UnrevealedStatement)
-    } else {
-        panic!("Unknown statement type: {}", s)
-    }
 }
 
 trait ExpectAlt<T> {

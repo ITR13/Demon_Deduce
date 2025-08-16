@@ -7,7 +7,7 @@ pub fn brute_force_solve(
     deck: &[Role],
     visible_roles: &[Option<Role>],
     confirmed_roles: &[Option<Role>],
-    observed_statements: &[Box<dyn RoleStatement>],
+    observed_statements: &[RoleStatement],
     villagers: usize,
     outcasts: usize,
     minions: usize,
@@ -307,7 +307,7 @@ fn statements_match(
     candidate: &[Role],
     wretch_assign: &[Role],
     disguise_assign: &[Role],
-    observed_statements: &[Box<dyn RoleStatement>],
+    observed_statements: &[RoleStatement],
 ) -> bool {
     // NB: This makes us lose corruption data! A proper solution would consider the corruptions separately
     let corrupt_permutations = execute_corruption(candidate, wretch_assign);
@@ -317,7 +317,7 @@ fn statements_match(
             izip!(candidate.iter(), disguise_assign.iter(), corruption.iter()).enumerate()
         {
             let obs = &observed_statements[idx];
-            if obs.equals(&UnrevealedStatement) {
+            if *obs == RoleStatement::Unrevealed {
                 continue;
             }
 
@@ -334,7 +334,7 @@ fn statements_match(
             );
 
             // If none of the possible statements match the observed one, reject candidate
-            if !possible_statements.iter().any(|ps| obs.equals(ps.as_ref())) {
+            if !possible_statements.iter().any(|ps| *obs == *ps) {
                 continue 'corruption_loop;
             }
         }
