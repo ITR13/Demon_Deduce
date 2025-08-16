@@ -24,7 +24,7 @@ fn parse_role(s: &str) -> Option<Role> {
 }
 
 pub fn run_args(args: Vec<String>) {
-    let (deck, visible, confirmed, observed, villagers, minions, demons, outcasts) =
+    let (deck, visible, confirmed, observed, villagers, outcasts, minions, demons) =
         match parse_input(&args) {
             Ok(parsed) => parsed,
             Err(e) => {
@@ -34,7 +34,7 @@ pub fn run_args(args: Vec<String>) {
         };
 
     run_solver_and_print(
-        &deck, &visible, &confirmed, &observed, villagers, minions, demons, outcasts,
+        &deck, &visible, &confirmed, &observed, villagers, outcasts, minions, demons, false,
     );
 }
 fn parse_input(
@@ -54,7 +54,7 @@ fn parse_input(
 > {
     if args.len() < 6 {
         return Err(format!(
-            "Usage: {} <deck> <villagers> <minions> <demons> <outcasts> [visible:confirmed:statement...]\nGot {} arguments",
+            "Usage: {} <deck> <villagers> <outcasts> <minions> <demons> [visible:confirmed:statement...]\nGot {} arguments",
             args[0],
             args.len() - 1
         ));
@@ -73,19 +73,19 @@ fn parse_input(
             args[2]
         )
     })?;
-    let minions = args[3].parse().map_err(|_| {
+    let outcasts = args[3].parse().map_err(|_| {
         format!(
             "Invalid minions count '{}': must be a positive integer",
             args[3]
         )
     })?;
-    let demons = args[4].parse().map_err(|_| {
+    let minions = args[4].parse().map_err(|_| {
         format!(
             "Invalid demons count '{}': must be a positive integer",
             args[4]
         )
     })?;
-    let outcasts = args[5].parse().map_err(|_| {
+    let demons = args[5].parse().map_err(|_| {
         format!(
             "Invalid outcasts count '{}': must be a positive integer",
             args[5]
@@ -150,7 +150,7 @@ fn parse_input(
     }
 
     Ok((
-        deck, visible, confirmed, observed, villagers, minions, demons, outcasts,
+        deck, visible, confirmed, observed, villagers, outcasts, minions, demons,
     ))
 }
 
@@ -160,13 +160,37 @@ fn run_solver_and_print(
     confirmed: &[Option<Role>],
     observed: &[RoleStatement],
     villagers: usize,
+    outcasts: usize,
     minions: usize,
     demons: usize,
-    outcasts: usize,
+    print_statements: bool,
 ) {
-    // Solve all valid assignments and collect solutions
+    if print_statements {
+        println!("Deck: {:?}", deck);
+        println!(
+            "Player counts - Villagers: {}, Outcasts: {}, Minions: {}, Demons: {}",
+            villagers, outcasts, minions, demons,
+        );
+        println!("\nPlayer details:");
+
+        for i in 0..visible.len() {
+            let vis = match visible[i] {
+                Some(role) => {
+                    let confirmed_part = match confirmed[i] {
+                        Some(c_role) if c_role != role => format!(" (confirmed: {:?})", c_role),
+                        _ => String::new(),
+                    };
+                    format!("{:?}{}", role, confirmed_part)
+                }
+                None => "Unrevealed".to_string(),
+            };
+
+            println!("Player {}: {} - {:?}", i, vis, observed[i]);
+        }
+    }
+
     let sols = brute_force_solve(
-        deck, visible, confirmed, observed, villagers, minions, demons, outcasts,
+        deck, visible, confirmed, observed, villagers, outcasts, minions, demons,
     );
 
     if sols.len() == 0 {
@@ -176,9 +200,11 @@ fn run_solver_and_print(
 
     println!("Found {} solution(s)", sols.len());
 
-    for s in &sols {
-        let line: Vec<String> = s.iter().map(|role| color_by_alignment(*role)).collect();
-        println!("{}", line.join(", "));
+    if sols.len() < 25 {
+        for s in &sols {
+            let line: Vec<String> = s.iter().map(|role| color_by_alignment(*role)).collect();
+            println!("{}", line.join(", "));
+        }
     }
 
     println!("\nPossible roles per position:");
