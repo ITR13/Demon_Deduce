@@ -323,18 +323,18 @@ fn statements_match(
 
             let lying = true_role.lying() || *is_corrupt;
 
-            // Generate every statement that could be made by this card
-            let possible_statements = produce_statements(
+            let is_valid = can_produce_statement(
                 vis_role,
                 lying,
                 wretch_assign,
                 disguise_assign,
                 corruption.as_slice(),
                 idx,
+                obs,
             );
 
-            // If none of the possible statements match the observed one, reject candidate
-            if !possible_statements.iter().any(|ps| *obs == *ps) {
+            // If not valid, reject candidate
+            if !is_valid {
                 continue 'corruption_loop;
             }
         }

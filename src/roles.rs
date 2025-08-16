@@ -1,7 +1,6 @@
-use itertools::Itertools;
+use bitvec::prelude::*;
 use std::fmt;
 use strum_macros::{Display, EnumIter, EnumString};
-use bitvec::prelude::*;
 
 type TargetIndexes = BitArray<[u8; 2], Lsb0>;
 
@@ -94,7 +93,7 @@ impl Role {
     }
     pub fn parse_statement(&self, s: &str) -> RoleStatement {
         fn parse_indexes(s: &str) -> TargetIndexes {
-            let mut bits =  TargetIndexes::default();
+            let mut bits = TargetIndexes::default();
 
             for idx_str in s.split(',') {
                 let idx: usize = idx_str.trim().parse().expect("Invalid index");
@@ -109,7 +108,11 @@ impl Role {
                 let distance = if s.trim() == "none" {
                     None
                 } else {
-                    Some(s.trim().parse().expect("Invalid distance for BardStatement"))
+                    Some(
+                        s.trim()
+                            .parse()
+                            .expect("Invalid distance for BardStatement"),
+                    )
                 };
                 RoleStatement::Bard(BardStatement { distance })
             }
@@ -161,7 +164,10 @@ impl Role {
                     "lying" => true,
                     _ => panic!("Unknown claim type: {}", parts[1]),
                 };
-                RoleStatement::Judge(JudgeStatement { target_index, is_lying })
+                RoleStatement::Judge(JudgeStatement {
+                    target_index,
+                    is_lying,
+                })
             }
             Role::Lover => {
                 let evil_count = s.trim().parse().expect("Invalid evil count");
@@ -196,10 +202,20 @@ impl Role {
                     "evil" => Alignment::Evil,
                     _ => panic!("Unknown alignment: {}", parts[1]),
                 };
-                RoleStatement::Slayer(SlayerStatement { target_index, alignment })
+                RoleStatement::Slayer(SlayerStatement {
+                    target_index,
+                    alignment,
+                })
             }
-            Role::Knight | Role::Bombardier | Role::PlagueDoctor | Role::Wretch
-            | Role::Minion | Role::Poisoner | Role::TwinMinion | Role::Witch | Role::Baa => {
+            Role::Knight
+            | Role::Bombardier
+            | Role::PlagueDoctor
+            | Role::Wretch
+            | Role::Minion
+            | Role::Poisoner
+            | Role::TwinMinion
+            | Role::Witch
+            | Role::Baa => {
                 panic!("No statement parsing implemented for {:?}", self)
             }
         }
@@ -367,17 +383,6 @@ pub enum EnlightenedStatement {
     Equidistant,
 }
 
-impl EnlightenedStatement {
-    fn iterator() -> impl Iterator<Item = EnlightenedStatement> {
-        [
-            EnlightenedStatement::Clockwise,
-            EnlightenedStatement::CounterClockwise,
-            EnlightenedStatement::Equidistant,
-        ]
-        .into_iter()
-    }
-}
-
 impl fmt::Display for EnlightenedStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Closest Evil is {}", self)
@@ -496,7 +501,7 @@ pub fn neighbor_indexes(len: usize, position: usize, offset: usize) -> Vec<usize
 }
 
 pub fn to_bitvec(indices: Vec<usize>) -> TargetIndexes {
-    let mut bits =  TargetIndexes::default();
+    let mut bits = TargetIndexes::default();
     for i in indices {
         bits.set(i, true);
     }
@@ -558,112 +563,92 @@ pub fn closest_corrupt_distance(corruptions: &[bool], position: usize) -> Option
     })
 }
 
-/// Produce the typed statements a card can make given:
+/// Check if a card can produce a specific statement given:
 /// - `visible_role`: what role is shown (may be a disguise)
 /// - `is_lying`: if the character should lie
 /// - `true_roles`: the true roles of all the cards in play
 /// - `position`: the index of the speaking card
-pub fn produce_statements(
+/// - `statement`: the statement to check
+pub fn can_produce_statement(
     visible_role: Role,
     is_lying: bool,
     true_roles: &[Role],
     disguised_roles: &[Role],
     corruptions: &[bool],
     position: usize,
-) -> Vec<RoleStatement> {
+    statement: &RoleStatement,
+) -> bool {
     if is_lying {
-        return match visible_role {
+        match visible_role {
             Role::Bard => {
-                let max_index = (true_roles.len() + 1) / 2;
                 let closest_distance = closest_corrupt_distance(corruptions, position);
-
-                let mut statements: Vec<RoleStatement> = (1..=max_index)
-                    .filter(|&i| Some(i) != closest_distance)
-                    .map(|i| RoleStatement::Bard(BardStatement { distance: Some(i) }))
-                    .collect();
-
-                // Add the "no corruption" statement if there actually is a closest corruption
-                if closest_distance.is_some() {
-                    statements.push(RoleStatement::Bard(BardStatement { distance: None }));
+                if let RoleStatement::Bard(BardStatement { distance }) = statement {
+                    if let Some(stmt_dist) = distance {
+                        *stmt_dist != closest_distance.unwrap_or(*stmt_dist + 1)
+                            && *stmt_dist <= (true_roles.len() + 1) / 2
+                    } else {
+                        closest_distance.is_some()
+                    }
+                } else {
+                    false
                 }
-
-                statements
             }
-            Role::Confessor => vec![RoleStatement::Confessor(ConfessorStatement::IAmDizzy)],
+            Role::Confessor => *statement == RoleStatement::Confessor(ConfessorStatement::IAmDizzy),
             Role::Empress => {
-                let good = true_roles
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, role)| role.alignment() != Alignment::Evil);
-
-                good.combinations(3)
-                    .map(move |triplet| {
-                        let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
-                        RoleStatement::Empress(EmpressStatement {
-                            target_indexes: to_bitvec(target_indexes),
-                        })
-                    })
-                    .collect()
+                if let RoleStatement::Empress(EmpressStatement { target_indexes }) = statement {
+                    target_indexes
+                        .iter_ones()
+                        .all(|i| true_roles[i].alignment() != Alignment::Evil)
+                } else {
+                    false
+                }
             }
             Role::Enlightened => {
                 let true_response = closest_evil_direction(true_roles, position);
-                EnlightenedStatement::iterator()
-                    .filter(|&stmt| stmt != true_response)
-                    .map(|stmt| RoleStatement::Enlightened(stmt))
-                    .collect()
+                if let RoleStatement::Enlightened(stmt) = statement {
+                    stmt != &true_response
+                } else {
+                    false
+                }
             }
             Role::Gemcrafter => {
-                // Claim all evil cards are good
-                true_roles
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, r)| r.alignment() == Alignment::Evil)
-                    .map(|(idx, _)| RoleStatement::Gemcrafter(GemcrafterStatement { target_index: idx }))
-                    .collect()
+                if let RoleStatement::Gemcrafter(GemcrafterStatement { target_index }) = statement {
+                    *target_index < true_roles.len()
+                        && true_roles[*target_index].alignment() == Alignment::Evil
+                } else {
+                    false
+                }
             }
             Role::Hunter => {
-                let max_index = (true_roles.len() + 1) / 2;
                 let index = closest_evil_distance(true_roles, position);
-
-                (1..=max_index)
-                    .filter(|&i| i != index)
-                    .map(|i| RoleStatement::Hunter(HunterStatement { distance: i }))
-                    .collect()
+                if let RoleStatement::Hunter(HunterStatement { distance }) = statement {
+                    *distance != index && *distance <= (true_roles.len() + 1) / 2
+                } else {
+                    false
+                }
             }
-            Role::Jester => true_roles
-                .iter()
-                .enumerate()
-                .combinations(3)
-                .flat_map(move |triplet| {
-                    let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
-                    let evil_count = count_evil(target_indexes.iter().map(|&i| &true_roles[i]));
-                    let targets = to_bitvec(target_indexes);
-
-                    (0..=3)
-                        .filter(|&fake_count| fake_count != evil_count)
-                        .map(|fake_count| {
-                            RoleStatement::Jester(JesterStatement {
-                                target_indexes: targets,
-                                evil_count: fake_count,
-                            })
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect(),
+            Role::Jester => {
+                if let RoleStatement::Jester(JesterStatement {
+                    target_indexes,
+                    evil_count,
+                }) = statement
+                {
+                    *evil_count != count_evil(target_indexes.iter_ones().map(|i| &true_roles[i]))
+                } else {
+                    false
+                }
+            }
             Role::Judge => {
-                // Claim all lying cards are truthy, and truthy cards are lying
-                let mut statements: Vec<RoleStatement> = true_roles
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, r)| {
-                        RoleStatement::Judge(JudgeStatement {
-                            target_index: idx,
-                            is_lying: r.lying(),
-                        })
-                    })
-                    .collect();
-                statements.push(RoleStatement::Unrevealed);
-                statements
+                if let RoleStatement::Judge(JudgeStatement {
+                    target_index,
+                    is_lying: stmt_lying,
+                }) = statement
+                {
+                    *target_index < true_roles.len()
+                        && *stmt_lying == true_roles[*target_index].lying()
+                } else {
+                    false
+                }
             }
             Role::Lover => {
                 let neighbors = neighbor_indexes(true_roles.len(), position, 1);
@@ -672,202 +657,172 @@ pub fn produce_statements(
                     .filter(|&&idx| true_roles[idx].alignment() == Alignment::Evil)
                     .count();
 
-                (0..=2)
-                    .filter(|&fake_count| fake_count != real_evil_count)
-                    .map(|fake_count| {
-                        RoleStatement::Lover(LoverStatement {
-                            evil_count: fake_count,
-                        })
-                    })
-                    .collect()
+                if let RoleStatement::Lover(LoverStatement { evil_count }) = statement {
+                    *evil_count != real_evil_count && *evil_count <= 2
+                } else {
+                    false
+                }
             }
             Role::Medium => {
-                // Claim all disguised cards as their disguise
-                true_roles
-                    .iter()
-                    .zip(disguised_roles.iter())
-                    .enumerate()
-                    .filter(|(_, (r, d))| r != d)
-                    .map(|(idx, (_, d))| {
-                        RoleStatement::Medium(MediumStatement {
-                            target_index: idx,
-                            role: *d,
-                        })
-                    })
-                    .collect()
+                if let RoleStatement::Medium(MediumStatement { target_index, role }) = statement {
+                    *target_index < true_roles.len()
+                        && *target_index < disguised_roles.len()
+                        && true_roles[*target_index] != disguised_roles[*target_index]
+                        && *role == disguised_roles[*target_index]
+                } else {
+                    false
+                }
             }
             Role::Scout => {
-                // Claim all evil roles as the wrong distance from their closest evil
-                let max_index = (true_roles.len() + 1) / 2;
-                true_roles
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, r)| r.alignment() == Alignment::Evil)
-                    .flat_map(|(idx, r)| {
-                        let distance = closest_evil_distance(true_roles, idx);
-                        (1..=max_index)
-                            .filter(|&i| i != distance)
-                            .map(|i| {
-                                RoleStatement::Scout(ScoutStatement {
-                                    role: *r,
-                                    distance: i,
-                                })
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .collect()
+                if let RoleStatement::Scout(ScoutStatement { role, distance }) = statement {
+                    true_roles
+                        .iter()
+                        .any(|r| r == role && r.alignment() == Alignment::Evil)
+                        && *distance
+                            != closest_evil_distance(
+                                true_roles,
+                                true_roles.iter().position(|r| r == role).unwrap(),
+                            )
+                        && *distance <= (true_roles.len() + 1) / 2
+                } else {
+                    false
+                }
             }
             Role::Slayer => {
-                // Claim all cards as good no matter what
-                let mut statements: Vec<RoleStatement> = true_roles
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, _)| {
-                        RoleStatement::Slayer(SlayerStatement {
-                            target_index: idx,
-                            alignment: Alignment::Good,
-                        })
-                    })
-                    .collect();
-                statements.push(RoleStatement::Unrevealed);
-                statements
+                if let RoleStatement::Slayer(SlayerStatement {
+                    target_index,
+                    alignment,
+                }) = statement
+                {
+                    *target_index < true_roles.len() && *alignment == Alignment::Good
+                } else {
+                    false
+                }
             }
-            // TODO: PlagueDoctor
             Role::Bombardier | Role::Wretch | Role::PlagueDoctor | Role::Knight => {
-                vec![RoleStatement::Unrevealed]
+                *statement == RoleStatement::Unrevealed
             }
             other => panic!(
-                "produce_statements: unsupported role combination: visible={:?}, lying={:?}",
+                "can_produce_statement: unsupported role combination: visible={:?}, lying={:?}",
                 other, is_lying
             ),
-        };
+        }
+    } else {
+        match visible_role {
+            Role::Bard => {
+                let closest_distance = closest_corrupt_distance(corruptions, position);
+                if let RoleStatement::Bard(BardStatement { distance }) = statement {
+                    *distance == closest_distance
+                } else {
+                    false
+                }
+            }
+            Role::Confessor => *statement == RoleStatement::Confessor(ConfessorStatement::IAmGood),
+            Role::Enlightened => {
+                *statement
+                    == RoleStatement::Enlightened(closest_evil_direction(true_roles, position))
+            }
+            Role::Empress => {
+                if let RoleStatement::Empress(EmpressStatement { target_indexes }) = statement {
+                    let (evil_count, good_count) =
+                        target_indexes
+                            .iter_ones()
+                            .fold((0, 0), |(evil, good), i| match true_roles[i].alignment() {
+                                Alignment::Evil => (evil + 1, good),
+                                Alignment::Good => (evil, good + 1),
+                            });
+                    evil_count == 1 && good_count == 2
+                } else {
+                    false
+                }
+            }
+            Role::Gemcrafter => {
+                if let RoleStatement::Gemcrafter(GemcrafterStatement { target_index }) = statement {
+                    *target_index < true_roles.len()
+                        && true_roles[*target_index].alignment() == Alignment::Good
+                } else {
+                    false
+                }
+            }
+            Role::Hunter => {
+                let index = closest_evil_distance(true_roles, position);
+                if let RoleStatement::Hunter(HunterStatement { distance }) = statement {
+                    *distance == index
+                } else {
+                    false
+                }
+            }
+            Role::Jester => {
+                if let RoleStatement::Jester(JesterStatement {
+                    target_indexes,
+                    evil_count,
+                }) = statement
+                {
+                    *evil_count == count_evil(target_indexes.iter_ones().map(|i| &true_roles[i]))
+                } else {
+                    false
+                }
+            }
+            Role::Judge => {
+                if let RoleStatement::Judge(JudgeStatement {
+                    target_index,
+                    is_lying: stmt_lying,
+                }) = statement
+                {
+                    *target_index < true_roles.len()
+                        && *stmt_lying == true_roles[*target_index].lying()
+                } else {
+                    false
+                }
+            }
+            Role::Lover => {
+                let evil_count = count_neighbor_evil(true_roles, position, 1);
+                if let RoleStatement::Lover(LoverStatement { evil_count: c }) = statement {
+                    *c == evil_count
+                } else {
+                    false
+                }
+            }
+            Role::Medium => {
+                if let RoleStatement::Medium(MediumStatement { target_index, role }) = statement {
+                    *target_index < true_roles.len()
+                        && true_roles[*target_index].alignment() == Alignment::Good
+                        && *role == true_roles[*target_index]
+                } else {
+                    false
+                }
+            }
+            Role::Scout => {
+                if let RoleStatement::Scout(ScoutStatement { role, distance }) = statement {
+                    if let Some(idx) = true_roles.iter().position(|r| r == role) {
+                        *distance == closest_evil_distance(true_roles, idx)
+                            && true_roles[idx].alignment() == Alignment::Evil
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            Role::Slayer => {
+                if let RoleStatement::Slayer(SlayerStatement {
+                    target_index,
+                    alignment,
+                }) = statement
+                {
+                    *target_index < true_roles.len()
+                        && *alignment == true_roles[*target_index].alignment()
+                } else {
+                    false
+                }
+            }
+            Role::Wretch | Role::PlagueDoctor | Role::Bombardier | Role::Knight => {
+                *statement == RoleStatement::Unrevealed
+            }
+            other => panic!(
+                "can_produce_statement: unsupported role combination: true={:?}, visible={:?}",
+                visible_role, other
+            ),
+        }
     }
-
-    return match visible_role {
-        Role::Bard => {
-            let closest_distance = closest_corrupt_distance(corruptions, position);
-            vec![RoleStatement::Bard(BardStatement {
-                distance: closest_distance,
-            })]
-        }
-        Role::Confessor => vec![RoleStatement::Confessor(ConfessorStatement::IAmGood)],
-        Role::Enlightened => vec![RoleStatement::Enlightened(closest_evil_direction(true_roles, position))],
-        Role::Empress => {
-            let (evil, good): (Vec<_>, Vec<_>) = true_roles
-                .iter()
-                .enumerate()
-                .partition(|(_, r)| r.alignment() == Alignment::Evil);
-
-            evil.iter()
-                .flat_map(|(ei, _)| {
-                    good.iter().combinations(2).map(move |pair| {
-                        let target_indexes = vec![*ei, pair[0].0, pair[1].0];
-                        RoleStatement::Empress(EmpressStatement {
-                            target_indexes: to_bitvec(target_indexes),
-                        })
-                    })
-                })
-                .collect()
-        }
-        Role::Gemcrafter => {
-            // Claim all villagers are good
-            true_roles
-                .iter()
-                .enumerate()
-                .filter(|(_, r)| r.alignment() == Alignment::Good)
-                .map(|(idx, _)| RoleStatement::Gemcrafter(GemcrafterStatement { target_index: idx }))
-                .collect()
-        }
-        Role::Hunter => {
-            let index = closest_evil_distance(true_roles, position);
-            vec![RoleStatement::Hunter(HunterStatement { distance: index })]
-        }
-        Role::Jester => true_roles
-            .iter()
-            .enumerate()
-            .combinations(3)
-            .map(move |triplet| {
-                let target_indexes = vec![triplet[0].0, triplet[1].0, triplet[2].0];
-                let evil_count = count_evil(target_indexes.iter().map(|&i| &true_roles[i]));
-                let targets = to_bitvec(target_indexes);
-                RoleStatement::Jester(JesterStatement {
-                    target_indexes: targets,
-                    evil_count: evil_count,
-                })
-            })
-            .collect::<Vec<_>>(),
-        Role::Judge => {
-            // Claim all lying cards are lying, and truthy cards are truthy
-            let mut statements: Vec<RoleStatement> = true_roles
-                .iter()
-                .enumerate()
-                .map(|(idx, r)| {
-                    RoleStatement::Judge(JudgeStatement {
-                        target_index: idx,
-                        is_lying: r.lying(),
-                    })
-                })
-                .collect();
-            statements.push(RoleStatement::Unrevealed);
-            statements
-        }
-        Role::Lover => {
-            let evil_count = count_neighbor_evil(true_roles, position, 1);
-            vec![RoleStatement::Lover(LoverStatement {
-                evil_count: evil_count,
-            })]
-        }
-        Role::Medium => {
-            // Claim all good cards as their role
-            true_roles
-                .iter()
-                .enumerate()
-                .filter(|(_, r)| r.alignment() == Alignment::Good)
-                .map(|(idx, r)| {
-                    RoleStatement::Medium(MediumStatement {
-                        target_index: idx,
-                        role: *r,
-                    })
-                })
-                .collect()
-        }
-        Role::Scout => {
-            // Claim all evil roles as the distance from their closest evil
-            true_roles
-                .iter()
-                .enumerate()
-                .filter(|(_, r)| r.alignment() == Alignment::Evil)
-                .map(|(idx, r)| {
-                    let distance = closest_evil_distance(true_roles, idx);
-                    RoleStatement::Scout(ScoutStatement {
-                        role: *r,
-                        distance: distance,
-                    })
-                })
-                .collect()
-        }
-        Role::Slayer => {
-            // Claim all good cards or evil cards as their alignment
-            let mut statements: Vec<RoleStatement> = true_roles
-                .iter()
-                .enumerate()
-                .map(|(idx, r)| {
-                    RoleStatement::Slayer(SlayerStatement {
-                        target_index: idx,
-                        alignment: r.alignment(),
-                    })
-                })
-                .collect();
-            statements.push(RoleStatement::Unrevealed);
-            statements
-        }
-        // TODO: PlagueDoctor
-        Role::Wretch | Role::PlagueDoctor | Role::Bombardier | Role::Knight => {
-            vec![RoleStatement::Unrevealed]
-        }
-        other => panic!(
-            "produce_statements: unsupported role combination: true={:?}, visible={:?}",
-            visible_role, other
-        ),
-    };
 }

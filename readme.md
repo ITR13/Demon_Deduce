@@ -85,16 +85,15 @@ Statements can be any of:
 ## How It Works
 
 The solver:
-1. Generates all possible combinations of roles matching the specified counts
-2. For each combination, generates all possible effects that combination can have
-3. Compares this to all the visible cards and statements, and finds which combinations are valid with the current information
+1. Travels through each valid combination of starting cards that produce the visible cards
+2. For each combination, check if the visible statements are valid
+3. Creates a list of valid combinations and what roles each position can have
 
 ## Output
 
 Solutions are shown with color-coded roles:
-- Green: Villagers
+- Green: Villagers / Good
 - Yellow: Outcasts
-- Red: Minions
+- Red: Minions / Evil
 - Bright Red: Demons
 
-The output also shows possible roles for each card position across all valid solutions.

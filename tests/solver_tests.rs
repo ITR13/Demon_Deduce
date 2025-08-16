@@ -66,7 +66,8 @@ fn example_with_claim_statement() {
         JudgeStatement {
             target_index: 0,
             is_lying: true,
-        }.into(),
+        }
+        .into(),
         ConfessorStatement::IAmDizzy.into(),
     ];
 
@@ -289,19 +290,24 @@ fn test_empress_empress_empress() {
     let observed: Vec<RoleStatement> = vec![
         EmpressStatement {
             target_indexes: to_bitvec(vec![1, 2, 3]),
-        }.into(),
+        }
+        .into(),
         EmpressStatement {
             target_indexes: to_bitvec(vec![0, 3, 4]),
-        }.into(),
+        }
+        .into(),
         EmpressStatement {
             target_indexes: to_bitvec(vec![0, 3, 4]),
-        }.into(),
+        }
+        .into(),
         EmpressStatement {
             target_indexes: to_bitvec(vec![0, 1, 4]),
-        }.into(),
+        }
+        .into(),
         EmpressStatement {
             target_indexes: to_bitvec(vec![0, 1, 2]),
-        }.into(),
+        }
+        .into(),
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0);
@@ -435,7 +441,8 @@ fn test_wretch() {
     let observed: Vec<RoleStatement> = vec![
         EmpressStatement {
             target_indexes: to_bitvec(vec![5, 2, 3]),
-        }.into(),
+        }
+        .into(),
         LoverStatement { evil_count: 0 }.into(),
         ConfessorStatement::IAmGood.into(),
         RoleStatement::Unrevealed,
@@ -487,11 +494,13 @@ fn test_twin_and_medium() {
         MediumStatement {
             target_index: 2,
             role: Gemcrafter,
-        }.into(),
+        }
+        .into(),
         JudgeStatement {
             target_index: 0,
             is_lying: true,
-        }.into(),
+        }
+        .into(),
         GemcrafterStatement { target_index: 0 }.into(),
         LoverStatement { evil_count: 1 }.into(),
         GemcrafterStatement { target_index: 3 }.into(),
@@ -541,7 +550,8 @@ fn test_jester() {
         JesterStatement {
             target_indexes: to_bitvec(vec![0, 2, 5]),
             evil_count: 1,
-        }.into(),
+        }
+        .into(),
         RoleStatement::Unrevealed,
         LoverStatement { evil_count: 1 }.into(),
         RoleStatement::Unrevealed,
@@ -578,8 +588,7 @@ fn test_confirmed() {
     let deck = vec![Knight, Minion];
     let visible = vec![Some(Knight), Some(Knight)];
     let confirmed = vec![Some(Knight), None];
-    let observed: Vec<RoleStatement> =
-        vec![RoleStatement::Unrevealed, RoleStatement::Unrevealed];
+    let observed: Vec<RoleStatement> = vec![RoleStatement::Unrevealed, RoleStatement::Unrevealed];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 1, 0, 1, 0);
     for solution in &solutions {
@@ -614,13 +623,15 @@ fn test_scout() {
         RoleStatement::Unrevealed,
         EmpressStatement {
             target_indexes: to_bitvec(vec![2, 3, 4]),
-        }.into(),
+        }
+        .into(),
         RoleStatement::Unrevealed,
         RoleStatement::Unrevealed,
         ScoutStatement {
             role: Witch,
             distance: 3,
-        }.into(),
+        }
+        .into(),
         EnlightenedStatement::Clockwise.into(),
     ];
 

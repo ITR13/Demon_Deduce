@@ -83,7 +83,8 @@ fn parse_input(
             {
                 RoleStatement::Unrevealed
             } else {
-                role.expect("Cannot provide statement of unrevealed role").parse_statement(parts[2])
+                role.expect("Cannot provide statement of unrevealed role")
+                    .parse_statement(parts[2])
             },
         );
     }
