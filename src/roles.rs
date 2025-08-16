@@ -207,9 +207,24 @@ impl Role {
                     alignment,
                 })
             }
+            Role::PlagueDoctor => {
+                let target_indexes: Vec<_> = parse_indexes(s).iter_ones().collect();
+
+                match target_indexes.len() {
+                    1 => PlagueDoctorStatement {
+                        corruption_index: target_indexes[0],
+                        evil_index: None,
+                    },
+                    2 => PlagueDoctorStatement {
+                        corruption_index: target_indexes[0],
+                        evil_index: Some(target_indexes[1]),
+                    },
+                    _ => panic!("PlagueDoctor must have 1 or 2 target indexes"),
+                }
+                .into()
+            }
             Role::Knight
             | Role::Bombardier
-            | Role::PlagueDoctor
             | Role::Wretch
             | Role::Minion
             | Role::Poisoner
@@ -237,6 +252,7 @@ pub enum RoleStatement {
     Medium(MediumStatement),
     Scout(ScoutStatement),
     Slayer(SlayerStatement),
+    PlagueDoctor(PlagueDoctorStatement),
 }
 
 impl From<BardStatement> for RoleStatement {
@@ -311,6 +327,12 @@ impl From<SlayerStatement> for RoleStatement {
     }
 }
 
+impl From<PlagueDoctorStatement> for RoleStatement {
+    fn from(statement: PlagueDoctorStatement) -> Self {
+        RoleStatement::PlagueDoctor(statement)
+    }
+}
+
 impl fmt::Display for RoleStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -327,6 +349,7 @@ impl fmt::Display for RoleStatement {
             RoleStatement::Medium(stmt) => stmt.fmt(f),
             RoleStatement::Scout(stmt) => stmt.fmt(f),
             RoleStatement::Slayer(stmt) => stmt.fmt(f),
+            RoleStatement::PlagueDoctor(stmt) => stmt.fmt(f),
         }
     }
 }
@@ -493,6 +516,25 @@ pub struct SlayerStatement {
 impl fmt::Display for SlayerStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{} is {:?}", self.target_index, self.alignment)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlagueDoctorStatement {
+    pub corruption_index: usize,
+    pub evil_index: Option<usize>,
+}
+
+impl fmt::Display for PlagueDoctorStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.evil_index {
+            None => write!(f, "{} is not corrupt", self.corruption_index),
+            Some(evil_idx) => write!(
+                f,
+                "{} is corrupt. {} is evil",
+                self.corruption_index, evil_idx
+            ),
+        }
     }
 }
 
@@ -699,7 +741,25 @@ pub fn can_produce_statement(
                     false
                 }
             }
-            Role::Bombardier | Role::Wretch | Role::PlagueDoctor | Role::Knight => {
+            Role::PlagueDoctor => {
+                if let RoleStatement::PlagueDoctor(PlagueDoctorStatement {
+                    corruption_index,
+                    evil_index,
+                }) = statement
+                {
+                    let is_corrupt = corruptions[*corruption_index];
+
+                    match evil_index {
+                        None => is_corrupt || *corruption_index == position,
+                        Some(evil_idx) => {
+                            !is_corrupt && true_roles[*evil_idx].alignment() == Alignment::Good
+                        }
+                    }
+                } else {
+                    false
+                }
+            }
+            Role::Bombardier | Role::Wretch | Role::Knight => {
                 *statement == RoleStatement::Unrevealed
             }
             other => panic!(
@@ -816,7 +876,25 @@ pub fn can_produce_statement(
                     false
                 }
             }
-            Role::Wretch | Role::PlagueDoctor | Role::Bombardier | Role::Knight => {
+            Role::PlagueDoctor => {
+                if let RoleStatement::PlagueDoctor(PlagueDoctorStatement {
+                    corruption_index,
+                    evil_index,
+                }) = statement
+                {
+                    let is_corrupt = corruptions[*corruption_index];
+
+                    match evil_index {
+                        None => !is_corrupt,
+                        Some(evil_idx) => {
+                            is_corrupt && true_roles[*evil_idx].alignment() == Alignment::Evil
+                        }
+                    }
+                } else {
+                    false
+                }
+            }
+            Role::Wretch | Role::Bombardier | Role::Knight => {
                 *statement == RoleStatement::Unrevealed
             }
             other => panic!(

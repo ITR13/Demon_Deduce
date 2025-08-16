@@ -63,7 +63,7 @@ Statements can be any of:
 
 ### Outcasts:
 - ✅ Bombardier
-- 🟡 PlagueDoctor
+- ✅ PlagueDoctor
 - ✅ Wretch
 - ❌ Drunk
 
