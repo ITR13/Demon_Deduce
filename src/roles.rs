@@ -12,12 +12,14 @@ pub enum Role {
     Confessor,
     Empress,
     Enlightened,
+    #[strum(serialize = "gemcrafter", serialize = "archivist")]
     Gemcrafter,
     Hunter,
     Jester,
     Judge,
     Knight,
     Lover,
+    #[strum(serialize = "medium", serialize = "lookout")]
     Medium,
     Scout,
     Slayer,
@@ -91,16 +93,24 @@ impl Role {
             Baa | Minion | Poisoner | TwinMinion | Witch => true,
         }
     }
-    pub fn parse_statement(&self, s: &str) -> RoleStatement {
-        fn parse_indexes(s: &str) -> TargetIndexes {
+    pub fn parse_statement(&self, s: &str) -> Result<RoleStatement, String> {
+        fn parse_indexes(s: &str) -> Result<TargetIndexes, String> {
             let mut bits = TargetIndexes::default();
 
-            for idx_str in s.split(',') {
-                let idx: usize = idx_str.trim().parse().expect("Invalid index");
+            for (i, idx_str) in s.split(',').enumerate() {
+                let idx_str = idx_str.trim();
+                let idx: usize = idx_str.parse().map_err(|_| {
+                    format!(
+                        "Invalid index '{}' at position {} in '{}'",
+                        idx_str,
+                        i + 1,
+                        s
+                    )
+                })?;
                 bits.set(idx, true);
             }
 
-            bits
+            Ok(bits)
         }
 
         match self {
@@ -108,120 +118,173 @@ impl Role {
                 let distance = if s.trim() == "none" {
                     None
                 } else {
-                    Some(
-                        s.trim()
-                            .parse()
-                            .expect("Invalid distance for BardStatement"),
-                    )
+                    Some(s.trim().parse().map_err(|_| {
+                        format!("Invalid distance '{}' for Bard - expected 'none' or a number", s)
+                    })?)
                 };
-                RoleStatement::Bard(BardStatement { distance })
+                Ok(BardStatement { distance }.into())
             }
             Role::Confessor => match s.trim() {
-                "iamgood" => RoleStatement::Confessor(ConfessorStatement::IAmGood),
-                "iamdizzy" => RoleStatement::Confessor(ConfessorStatement::IAmDizzy),
-                _ => panic!("Invalid Confessor statement: {}", s),
+                "iamgood" => Ok(ConfessorStatement::IAmGood.into()),
+                "iamdizzy" => Ok(ConfessorStatement::IAmDizzy.into()),
+                _ => Err(format!(
+                    "Invalid Confessor statement '{}' - expected 'iamgood' or 'iamdizzy'",
+                    s
+                )),
             },
             Role::Empress => {
-                let target_indexes = parse_indexes(s);
-                RoleStatement::Empress(EmpressStatement { target_indexes })
+                let target_indexes = parse_indexes(s)?;
+                Ok(EmpressStatement { target_indexes }.into())
             }
             Role::Enlightened => match s.trim() {
-                "clockwise" => RoleStatement::Enlightened(EnlightenedStatement::Clockwise),
-                "counterclockwise" => {
-                    RoleStatement::Enlightened(EnlightenedStatement::CounterClockwise)
-                }
-                "equidistant" => RoleStatement::Enlightened(EnlightenedStatement::Equidistant),
-                _ => panic!("Invalid Enlightened statement: {}", s),
+                "clockwise" => Ok(EnlightenedStatement::Clockwise.into()),
+                "counterclockwise" => Ok(EnlightenedStatement::CounterClockwise.into()),
+                "equidistant" => Ok(EnlightenedStatement::Equidistant.into()),
+                _ => Err(format!(
+                    "Invalid Enlightened statement '{}' - expected 'clockwise', 'counterclockwise', or 'equidistant'",
+                    s
+                )),
             },
             Role::Gemcrafter => {
-                let target_index = s.trim().parse().expect("Invalid target index");
-                RoleStatement::Gemcrafter(GemcrafterStatement { target_index })
+                let target_index = s.trim().parse().map_err(|_| {
+                    format!("Invalid target index '{}' for Gemcrafter", s)
+                })?;
+                Ok(GemcrafterStatement { target_index }.into())
             }
             Role::Hunter => {
-                let distance = s.trim().parse().expect("Invalid distance");
-                RoleStatement::Hunter(HunterStatement { distance })
+                let distance = s.trim().parse().map_err(|_| {
+                    format!("Invalid distance '{}' for Hunter", s)
+                })?;
+                Ok(HunterStatement { distance }.into())
             }
             Role::Jester => {
                 let parts: Vec<&str> = s.split(';').collect();
                 if parts.len() != 2 {
-                    panic!("Invalid Jester statement: {}", s);
+                    return Err(format!(
+                        "Invalid Jester statement '{}' - expected format 'indexes;evil_count'",
+                        s
+                    ));
                 }
-                let target_indexes = parse_indexes(parts[0]);
-                let evil_count = parts[1].trim().parse().expect("Invalid evil count");
-                RoleStatement::Jester(JesterStatement {
+                let target_indexes = parse_indexes(parts[0])?;
+                let evil_count = parts[1].trim().parse().map_err(|_| {
+                    format!("Invalid evil count '{}' in Jester statement", parts[1])
+                })?;
+                Ok(JesterStatement {
                     target_indexes,
                     evil_count,
-                })
+                }.into())
             }
             Role::Judge => {
                 let parts: Vec<&str> = s.split(';').collect();
                 if parts.len() != 2 {
-                    panic!("Invalid Judge statement: {}", s);
+                    return Err(format!(
+                        "Invalid Judge statement '{}' - expected format 'target_index;truthy|lying'",
+                        s
+                    ));
                 }
-                let target_index = parts[0].trim().parse().expect("Invalid target index");
+                let target_index = parts[0].trim().parse().map_err(|_| {
+                    format!("Invalid target index '{}' in Judge statement", parts[0])
+                })?;
                 let is_lying = match parts[1].trim() {
                     "truthy" => false,
                     "lying" => true,
-                    _ => panic!("Unknown claim type: {}", parts[1]),
+                    _ => {
+                        return Err(format!(
+                            "Invalid claim type '{}' in Judge statement - expected 'truthy' or 'lying'",
+                            parts[1]
+                        ))
+                    }
                 };
-                RoleStatement::Judge(JudgeStatement {
+                Ok(JudgeStatement {
                     target_index,
                     is_lying,
-                })
+                }.into())
             }
             Role::Lover => {
-                let evil_count = s.trim().parse().expect("Invalid evil count");
-                RoleStatement::Lover(LoverStatement { evil_count })
+                let evil_count = s.trim().parse().map_err(|_| {
+                    format!("Invalid evil count '{}' for Lover", s)
+                })?;
+                Ok(LoverStatement { evil_count }.into())
             }
             Role::Medium => {
                 let parts: Vec<&str> = s.split(';').collect();
                 if parts.len() != 2 {
-                    panic!("Invalid Medium statement: {}", s);
+                    return Err(format!(
+                        "Invalid Medium statement '{}' - expected format 'target_index;role'",
+                        s
+                    ));
                 }
-                let target_index = parts[0].trim().parse().expect("Invalid target index");
-                let role: Role = parts[1].trim().parse().expect("Invalid target role");
-                RoleStatement::Medium(MediumStatement { target_index, role })
+                let target_index = parts[0].trim().parse().map_err(|_| {
+                    format!("Invalid target index '{}' in Medium statement", parts[0])
+                })?;
+                let role: Role = parts[1].trim().parse().map_err(|e| {
+                    format!(
+                        "Invalid target role '{}' in Medium statement: {}",
+                        parts[1], e
+                    )
+                })?;
+                Ok(MediumStatement { target_index, role }.into())
             }
             Role::Scout => {
                 let parts: Vec<&str> = s.split(';').collect();
                 if parts.len() != 2 {
-                    panic!("Invalid Scout statement: {}", s);
+                    return Err(format!(
+                        "Invalid Scout statement '{}' - expected format 'role;distance'",
+                        s
+                    ));
                 }
-                let role: Role = parts[0].trim().parse().expect("Invalid target role");
-                let distance = parts[1].trim().parse().expect("Invalid distance");
-                RoleStatement::Scout(ScoutStatement { role, distance })
+                let role: Role = parts[0].trim().parse().map_err(|e| {
+                    format!("Invalid role '{}' in Scout statement: {}", parts[0], e)
+                })?;
+                let distance = parts[1].trim().parse().map_err(|_| {
+                    format!("Invalid distance '{}' in Scout statement", parts[1])
+                })?;
+                Ok(ScoutStatement { role, distance }.into())
             }
             Role::Slayer => {
                 let parts: Vec<&str> = s.split(';').collect();
                 if parts.len() != 2 {
-                    panic!("Invalid Slayer statement: {}", s);
+                    return Err(format!(
+                        "Invalid Slayer statement '{}' - expected format 'target_index;good|evil'",
+                        s
+                    ));
                 }
-                let target_index = parts[0].trim().parse().expect("Invalid target index");
+                let target_index = parts[0].trim().parse().map_err(|_| {
+                    format!("Invalid target index '{}' in Slayer statement", parts[0])
+                })?;
                 let alignment = match parts[1].trim() {
                     "good" => Alignment::Good,
                     "evil" => Alignment::Evil,
-                    _ => panic!("Unknown alignment: {}", parts[1]),
+                    _ => {
+                        return Err(format!(
+                            "Invalid alignment '{}' in Slayer statement - expected 'good' or 'evil'",
+                            parts[1]
+                        ))
+                    }
                 };
-                RoleStatement::Slayer(SlayerStatement {
+                Ok(SlayerStatement {
                     target_index,
                     alignment,
-                })
+                }.into())
             }
             Role::PlagueDoctor => {
-                let target_indexes: Vec<_> = parse_indexes(s).iter_ones().collect();
+                let target_indexes: Vec<_> = parse_indexes(s)?.iter_ones().collect();
 
                 match target_indexes.len() {
-                    1 => PlagueDoctorStatement {
+                    1 => Ok(PlagueDoctorStatement {
                         corruption_index: target_indexes[0],
                         evil_index: None,
-                    },
-                    2 => PlagueDoctorStatement {
+                    }.into()),
+                    2 => Ok(PlagueDoctorStatement {
                         corruption_index: target_indexes[0],
                         evil_index: Some(target_indexes[1]),
-                    },
-                    _ => panic!("PlagueDoctor must have 1 or 2 target indexes"),
+                    }.into()),
+                    _ => Err(format!(
+                        "PlagueDoctor must have 1 or 2 target indexes, got {} in '{}'",
+                        target_indexes.len(),
+                        s
+                    )),
                 }
-                .into()
             }
             Role::Knight
             | Role::Bombardier
@@ -230,9 +293,10 @@ impl Role {
             | Role::Poisoner
             | Role::TwinMinion
             | Role::Witch
-            | Role::Baa => {
-                panic!("No statement parsing implemented for {:?}", self)
-            }
+            | Role::Baa => Err(format!(
+                "No statement parsing implemented for {:?}",
+                self
+            )),
         }
     }
 }
