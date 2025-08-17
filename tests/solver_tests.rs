@@ -731,7 +731,7 @@ fn test_fortune_teller() {
 #[test]
 fn test_counsellor() {
     use Role::*;
-    let deck = vec![Wretch, Confessor, Knight, Jester, Counsellor];
+    let deck = vec![Wretch, Confessor, Knight, Jester, Empress, Counsellor];
     let visible = vec![Some(Wretch), Some(Confessor), Some(Knight), Some(Jester)];
     let confirmed = vec![None; visible.len()];
     let observed: Vec<RoleStatement> = vec![
@@ -741,7 +741,7 @@ fn test_counsellor() {
         RoleStatement::NoStatement,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 1, 1, 0, false);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 3, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),

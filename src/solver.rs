@@ -47,54 +47,61 @@ pub fn brute_force_solve(
 
     // Try every possible combination of villagers, minions, and outcasts
     for v_combo in &villager_combos {
-        let deck_villager_not_in_play_choices: Vec<Role> = deck
+        let deck_villager_not_in_play: Vec<Role> = deck
             .iter()
             .copied()
             .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
             .collect();
 
-        for m_combo in &minion_combos {
-            let has_counsellor = m_combo.iter().any(|&r| r == Role::Counsellor);
-            for o_combo in &outcast_combos {
+        for o_combo in &outcast_combos {
+            let outcasts_not_in_play: Vec<Role> = deck
+                .iter()
+                .copied()
+                .filter(|r| r.group() == Group::Outcast && !o_combo.contains(r))
+                .collect();
+            for m_combo in &minion_combos {
+                let has_counsellor = m_combo.iter().any(|&r| r == Role::Counsellor);
                 for d_combo in &demon_combos {
-                    let combined: Vec<_> = v_combo
-                        .iter()
-                        .chain(m_combo.iter())
-                        .chain(o_combo.iter())
-                        .chain(d_combo.iter())
-                        .copied()
-                        .collect();
-
-                    // Prepare role counts for multiset permutation generation
-                    let mut counts: HashMap<Role, usize> = HashMap::new();
-                    for &r in &combined {
-                        *counts.entry(r).or_insert(0) += 1;
-                    }
-
-                    let keys: Vec<Role> = counts.keys().copied().collect();
-
-                    // Generate all seat permutations of this role multiset
-                    permute_multiset(
-                        &mut counts,
-                        &keys,
-                        &mut perm_current,
-                        n,
+                    let combined_variations = generate_role_variations(
+                        v_combo,
+                        o_combo,
+                        m_combo,
+                        d_combo,
+                        &outcasts_not_in_play,
                         has_counsellor,
-                        &mut |candidate: &[Role]| {
-                            // Immediately discard if known confirmed roles don’t match
-                            if !confirmed_roles_ok(candidate, confirmed_roles) {
-                                return;
-                            }
+                    );
 
-                            // Build possible Wretch replacements and minion disguises for each seat
-                            let (wretch_choices, disguise_choices) = build_choices(
-                                candidate,
-                                &deck_minion_choices,
-                                &deck_non_evil_choices,
-                                &deck_villager_not_in_play_choices,
-                            );
-                            // DFS through every possible Wretch assignment + disguise mapping
-                            assign_disguises_and_check(
+                    for combined in combined_variations {
+                        // Prepare role counts for multiset permutation generation
+                        let mut counts: HashMap<Role, usize> = HashMap::new();
+                        for &r in &combined {
+                            *counts.entry(r).or_insert(0) += 1;
+                        }
+
+                        let keys: Vec<Role> = counts.keys().copied().collect();
+
+                        // Generate all seat permutations of this role multiset
+                        permute_multiset(
+                            &mut counts,
+                            &keys,
+                            &mut perm_current,
+                            n,
+                            has_counsellor,
+                            &mut |candidate: &[Role]| {
+                                // Immediately discard if known confirmed roles don’t match
+                                if !confirmed_roles_ok(candidate, confirmed_roles) {
+                                    return;
+                                }
+
+                                // Build possible Wretch replacements and minion disguises for each seat
+                                let (wretch_choices, disguise_choices) = build_choices(
+                                    candidate,
+                                    &deck_minion_choices,
+                                    &deck_non_evil_choices,
+                                    &deck_villager_not_in_play,
+                                );
+                                // DFS through every possible Wretch assignment + disguise mapping
+                                assign_disguises_and_check(
                                 candidate,
                                 &wretch_choices,
                                 &disguise_choices,
@@ -117,14 +124,59 @@ pub fn brute_force_solve(
                                     success
                                 },
                             );
-                        },
-                    );
+                            },
+                        );
+                    }
                 }
             }
         }
     }
 
     valid
+}
+
+fn generate_role_variations(
+    v_combo: &[Role],
+    o_combo: &[Role],
+    m_combo: &[Role],
+    d_combo: &[Role],
+    outcasts_not_in_play: &[Role],
+    has_counsellor: bool,
+) -> Vec<Vec<Role>> {
+    let mut combinations = Vec::new();
+
+    if !has_counsellor {
+        let base_combination: Vec<Role> = v_combo
+            .iter()
+            .chain(o_combo.iter())
+            .chain(m_combo.iter())
+            .chain(d_combo.iter())
+            .copied()
+            .collect();
+        combinations.push(base_combination);
+        return combinations;
+    }
+
+    for (i, role) in v_combo.iter().enumerate() {
+        if role.group() == Group::Villager {
+            for outcast in outcasts_not_in_play {
+                let mut modified_v_combo = v_combo.to_vec();
+                modified_v_combo[i] = *outcast;
+
+                let combination: Vec<Role> = modified_v_combo
+                    .iter()
+                    .chain(o_combo.iter())
+                    .chain(m_combo.iter())
+                    .chain(d_combo.iter())
+                    .copied()
+                    .collect();
+
+                combinations.push(combination);
+            }
+        }
+    }
+
+    combinations
 }
 
 fn build_choices(
