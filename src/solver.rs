@@ -315,7 +315,10 @@ fn statements_match(
     // NB: This makes us lose corruption data! A proper solution would consider the corruptions separately
     let corrupt_permutations = execute_corruption(candidate, wretch_assign);
 
-    'corruption_loop: for corruption in corrupt_permutations {
+    'corruption_loop: for pre_corruption in corrupt_permutations {
+        let (corruption, uncorruptions) = execute_uncorruption(candidate, disguise_assign, &pre_corruption);
+
+
         for (idx, (&true_role, &vis_role, is_corrupt)) in
             izip!(candidate.iter(), disguise_assign.iter(), corruption.iter()).enumerate()
         {
@@ -332,6 +335,7 @@ fn statements_match(
                 wretch_assign,
                 disguise_assign,
                 corruption.as_slice(),
+                uncorruptions.as_slice(),
                 idx,
                 obs,
             );
@@ -417,4 +421,29 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
     combine(&poison_options, 0, &mut vec![false; len], &mut result);
 
     result
+}
+
+fn execute_uncorruption(true_roles: &[Role], disguised_roles: &[Role], corruption: &[bool]) -> (Vec<bool>, Vec<usize>) {
+    let len = corruption.len();
+    let mut mut_corruption = corruption.to_vec();
+    let mut cleared_counts = vec![0_usize; len];
+
+    for i in 0..len {
+        if disguised_roles[i] == Role::Alchemist && !mut_corruption[i] && !true_roles[i].lying() {
+            let mut cleared = 0;
+
+            for &offset in &[1, 2] {
+                for &neighbor in &neighbor_indexes(len, i, offset) {
+                    if mut_corruption[neighbor] {
+                        mut_corruption[neighbor] = false;
+                        cleared += 1;
+                    }
+                }
+            }
+
+            cleared_counts[i] = cleared;
+        }
+    }
+
+    (mut_corruption, cleared_counts)
 }

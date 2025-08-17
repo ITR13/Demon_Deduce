@@ -9,6 +9,7 @@ type TargetIndexes = BitArray<[u8; 2], Lsb0>;
 #[strum(serialize_all = "lowercase")]
 pub enum Role {
     // Villager
+    Alchemist,
     #[strum(serialize = "bard", serialize = "athlete")]
     Bard,
     Confessor,
@@ -72,7 +73,7 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
+            Alchemist | Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Scout | Slayer => Group::Villager,
             Bombardier | PlagueDoctor | Wretch => Group::Outcast,
             Minion | Poisoner | TwinMinion | Witch => Group::Minion,
@@ -82,7 +83,7 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
+            Alchemist | Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
                 Alignment::Good
             }
@@ -92,7 +93,7 @@ impl Role {
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
+            Alchemist | Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
                 false
             }
@@ -120,6 +121,12 @@ impl Role {
         }
 
         match self {
+            Role::Alchemist => {
+                let corrupt_count = s.trim().parse().map_err(|_| {
+                    format!("Invalid corrupt count '{}' for Alchemist", s)
+                })?;
+                Ok(AlchemistStatement { corrupt_count }.into())
+            }
             Role::Bard => {
                 let distance = if s.trim() == "none" {
                     None
@@ -313,6 +320,19 @@ impl Role {
     }
     pub fn parse_natural_statement(&self, s: &str) -> Result<RoleStatement, String> {
         match self {
+            Role::Alchemist => {
+                if let Some(caps) = regex::Regex::new(r"I cured (\d+) Corruptions?")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let corrupt_count = caps[1]
+                        .parse()
+                        .map_err(|_| format!("Invalid corrupt count in Alchemist statement '{}'", s))?;
+                    Ok(AlchemistStatement { corrupt_count }.into())
+                } else {
+                    Err(format!("Invalid Alchemist statement '{}'", s))
+                }
+            }
             Role::Bard => {
                 let s = s.to_lowercase();
                 if let Some(caps) =
@@ -558,6 +578,7 @@ macro_rules! role_statements {
 }
 
 role_statements! {
+    Alchemist(AlchemistStatement),
     Bard(BardStatement),
     Confessor(ConfessorStatement),
     Empress(EmpressStatement),
@@ -572,6 +593,17 @@ role_statements! {
     Scout(ScoutStatement),
     Slayer(SlayerStatement),
     PlagueDoctor(PlagueDoctorStatement),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlchemistStatement {
+    pub corrupt_count: usize,
+}
+
+impl fmt::Display for AlchemistStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "I cured {} corruptions", self.corrupt_count)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -871,11 +903,22 @@ pub fn can_produce_statement(
     true_roles: &[Role],
     disguised_roles: &[Role],
     corruptions: &[bool],
+    drunk_uncorruptions: &[usize],
     position: usize,
     statement: &RoleStatement,
 ) -> bool {
     if is_lying {
         match visible_role {
+            Role::Alchemist => {
+                if let RoleStatement::Alchemist(AlchemistStatement{
+                    corrupt_count
+                }) = statement
+                {
+                    *corrupt_count != 0
+                } else {
+                    false
+                }
+            }
             Role::Bard => {
                 let closest_distance = closest_corrupt_distance(corruptions, position);
                 if let RoleStatement::Bard(BardStatement { distance }) = statement {
@@ -1035,6 +1078,16 @@ pub fn can_produce_statement(
         }
     } else {
         match visible_role {
+            Role::Alchemist => {
+                if let RoleStatement::Alchemist(AlchemistStatement{
+                    corrupt_count
+                }) = statement
+                {
+                    *corrupt_count == drunk_uncorruptions[position]
+                } else {
+                    false
+                }
+            },
             Role::Bard => {
                 let closest_distance = closest_corrupt_distance(corruptions, position);
                 if let RoleStatement::Bard(BardStatement { distance }) = statement {

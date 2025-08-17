@@ -33,6 +33,7 @@ The format for this is:
 ## Implemented Roles
 
 ### Villagers:
+- ✅ Alchemist
 - ✅ Bard
 - ✅ Confessor
 - ✅ Empress
@@ -47,7 +48,6 @@ The format for this is:
 - ✅ Medium
 - ✅ Scout
 - ✅ Slayer
-- ❌ Alchemist
 - ❌ Architect
 - ❌ Baker
 - ❌ Bishop
