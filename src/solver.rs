@@ -316,8 +316,8 @@ fn statements_match(
     let corrupt_permutations = execute_corruption(candidate, wretch_assign);
 
     'corruption_loop: for pre_corruption in corrupt_permutations {
-        let (corruption, uncorruptions) = execute_uncorruption(candidate, disguise_assign, &pre_corruption);
-
+        let (corruption, uncorruptions) =
+            execute_uncorruption(candidate, disguise_assign, &pre_corruption);
 
         for (idx, (&true_role, &vis_role, is_corrupt)) in
             izip!(candidate.iter(), disguise_assign.iter(), corruption.iter()).enumerate()
@@ -423,7 +423,11 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
     result
 }
 
-fn execute_uncorruption(true_roles: &[Role], disguised_roles: &[Role], corruption: &[bool]) -> (Vec<bool>, Vec<usize>) {
+fn execute_uncorruption(
+    true_roles: &[Role],
+    disguised_roles: &[Role],
+    corruption: &[bool],
+) -> (Vec<bool>, Vec<usize>) {
     let len = corruption.len();
     let mut mut_corruption = corruption.to_vec();
     let mut cleared_counts = vec![0_usize; len];

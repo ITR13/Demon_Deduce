@@ -656,7 +656,14 @@ fn test_fortune_teller() {
     use Role::*;
 
     let deck = vec![
-        Alchemist, Confessor, Judge, FortuneTeller, Empress, PlagueDoctor, Minion, Witch,
+        Alchemist,
+        Confessor,
+        Judge,
+        FortuneTeller,
+        Empress,
+        PlagueDoctor,
+        Minion,
+        Witch,
     ];
 
     let visible = vec![
@@ -699,8 +706,7 @@ fn test_fortune_teller() {
         .into(),
     ];
 
-    let solutions =
-        brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 2, 0, false);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 2, 0, false);
 
     for solution in &solutions {
         assert!(

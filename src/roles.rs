@@ -74,8 +74,10 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
-            | Knight | Knitter | Lover | Medium | Scout | Slayer => Group::Villager,
+            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
+            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Scout | Slayer => {
+                Group::Villager
+            }
             Bombardier | PlagueDoctor | Wretch => Group::Outcast,
             Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
@@ -84,20 +86,18 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
-            | Knight | Knitter | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
-                Alignment::Good
-            }
+            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
+            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Scout | Slayer
+            | Bombardier | PlagueDoctor | Wretch => Alignment::Good,
             Baa | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
-            | Knight | Knitter | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
-                false
-            }
+            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
+            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Scout | Slayer
+            | Bombardier | PlagueDoctor | Wretch => false,
             Baa | Minion | Poisoner | TwinMinion | Witch => true,
         }
     }
@@ -343,9 +343,9 @@ impl Role {
                     .unwrap()
                     .captures(s)
                 {
-                    let corrupt_count = caps[1]
-                        .parse()
-                        .map_err(|_| format!("Invalid corrupt count in Alchemist statement '{}'", s))?;
+                    let corrupt_count = caps[1].parse().map_err(|_| {
+                        format!("Invalid corrupt count in Alchemist statement '{}'", s)
+                    })?;
                     Ok(AlchemistStatement { corrupt_count }.into())
                 } else {
                     Err(format!("Invalid Alchemist statement '{}'", s))
@@ -522,10 +522,11 @@ impl Role {
                 }
             }
             Role::Scout => {
-                if let Some(caps) =
-                    regex::Regex::new(r"(\w+(?:\s\w+))\s+is\s+(\d+)\s*cards?\s*away from closest Evil")
-                        .unwrap()
-                        .captures(s)
+                if let Some(caps) = regex::Regex::new(
+                    r"(\w+(?:\s\w+))\s+is\s+(\d+)\s*cards?\s*away from closest Evil",
+                )
+                .unwrap()
+                .captures(s)
                 {
                     let role = Role::from_str(&caps[1].to_lowercase())
                         .map_err(|_| format!("Invalid role '{}' in Scout statement", &caps[1]))?;
@@ -538,18 +539,20 @@ impl Role {
                 }
             }
             Role::Knitter => {
-                if s.trim().eq_ignore_ascii_case("Evils are not adjacent to eachother") {
-                    Ok(KnitterStatement { adjacent_count: 0 }.into())
-                } else if let Some(caps) = regex::Regex::new(r"(\d+)")
-                    .unwrap()
-                    .captures(s)
+                if s.trim()
+                    .eq_ignore_ascii_case("Evils are not adjacent to eachother")
                 {
+                    Ok(KnitterStatement { adjacent_count: 0 }.into())
+                } else if let Some(caps) = regex::Regex::new(r"(\d+)").unwrap().captures(s) {
                     let adjacent_count = caps[1]
                         .parse()
                         .map_err(|_| format!("Invalid evil count in Knitter statement '{}'", s))?;
                     Ok(KnitterStatement { adjacent_count }.into())
                 } else {
-                    Err(format!("Invalid Knitter statement '{}' - expected format", s))
+                    Err(format!(
+                        "Invalid Knitter statement '{}' - expected format",
+                        s
+                    ))
                 }
             }
             Role::PlagueDoctor => {
@@ -558,30 +561,39 @@ impl Role {
                     .unwrap()
                     .captures(&s)
                 {
-                    let corruption_index: usize = caps[1].parse().map_err(|_| {
-                        format!("invalid index in plague doctor statement '{}'", s)
-                    })?;
+                    let corruption_index: usize = caps[1]
+                        .parse()
+                        .map_err(|_| format!("invalid index in plague doctor statement '{}'", s))?;
                     let corruption_index = corruption_index - 1;
 
-                    let evil_index = caps.get(2).map(|m| {
-                        m.as_str().parse::<usize>().map_err(|_| {
-                            format!("invalid second index in plague doctor statement '{}'", s)
-                        }).map(|x| x - 1)
-                    }).transpose()?;
+                    let evil_index = caps
+                        .get(2)
+                        .map(|m| {
+                            m.as_str()
+                                .parse::<usize>()
+                                .map_err(|_| {
+                                    format!(
+                                        "invalid second index in plague doctor statement '{}'",
+                                        s
+                                    )
+                                })
+                                .map(|x| x - 1)
+                        })
+                        .transpose()?;
 
                     Ok(PlagueDoctorStatement {
                         corruption_index,
                         evil_index,
-                    }.into())
+                    }
+                    .into())
                 } else {
                     Err(format!("invalid plague doctor statement '{}'", s))
                 }
             }
             Role::FortuneTeller => {
-                if let Some(caps) =
-                    regex::Regex::new(r"#(\d+).*#(\d+).*(True|False)")
-                        .unwrap()
-                        .captures(s)
+                if let Some(caps) = regex::Regex::new(r"#(\d+).*#(\d+).*(True|False)")
+                    .unwrap()
+                    .captures(s)
                 {
                     let first: usize = caps[1]
                         .parse()
@@ -590,8 +602,12 @@ impl Role {
                         .parse()
                         .map_err(|_| format!("Invalid index in FortuneTeller statement '{}'", s))?;
                     let is_evil = caps[3] == *"True";
-                    let target_indexes = to_bitvec(vec![first-1, second-1]);
-                    Ok(FortuneTellerStatement { target_indexes, is_evil }.into())
+                    let target_indexes = to_bitvec(vec![first - 1, second - 1]);
+                    Ok(FortuneTellerStatement {
+                        target_indexes,
+                        is_evil,
+                    }
+                    .into())
                 } else {
                     Err(format!("Invalid Scout statement '{}'", s))
                 }
@@ -743,7 +759,12 @@ pub struct FortuneTellerStatement {
 
 impl fmt::Display for FortuneTellerStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Is {:?} Evil?: {}", self.target_indexes.iter_ones().collect::<Vec<_>>(), self.is_evil)
+        write!(
+            f,
+            "Is {:?} Evil?: {}",
+            self.target_indexes.iter_ones().collect::<Vec<_>>(),
+            self.is_evil
+        )
     }
 }
 
@@ -959,10 +980,7 @@ pub fn closest_corrupt_distance(corruptions: &[bool], position: usize) -> Option
 pub fn count_evil_pairs(true_roles: &[Role]) -> usize {
     true_roles
         .windows(2)
-        .filter(|w|
-            w[0].alignment() == Alignment::Evil &&
-            w[1].alignment() == Alignment::Evil
-        )
+        .filter(|w| w[0].alignment() == Alignment::Evil && w[1].alignment() == Alignment::Evil)
         .count()
 }
 
@@ -985,10 +1003,7 @@ pub fn can_produce_statement(
     if is_lying {
         match visible_role {
             Role::Alchemist => {
-                if let RoleStatement::Alchemist(AlchemistStatement{
-                    corrupt_count
-                }) = statement
-                {
+                if let RoleStatement::Alchemist(AlchemistStatement { corrupt_count }) = statement {
                     *corrupt_count != 0
                 } else {
                     false
@@ -1026,13 +1041,14 @@ pub fn can_produce_statement(
                 }
             }
             Role::FortuneTeller => {
-                if let RoleStatement::FortuneTeller(
-                    FortuneTellerStatement{
-                        target_indexes,
-                        is_evil,
-                    }
-                ) = statement {
-                    let any_evil = target_indexes.iter_ones().any(|i| true_roles[i].alignment() == Alignment::Evil);
+                if let RoleStatement::FortuneTeller(FortuneTellerStatement {
+                    target_indexes,
+                    is_evil,
+                }) = statement
+                {
+                    let any_evil = target_indexes
+                        .iter_ones()
+                        .any(|i| true_roles[i].alignment() == Alignment::Evil);
                     return any_evil != *is_evil;
                 } else {
                     false
@@ -1077,10 +1093,7 @@ pub fn can_produce_statement(
                 }
             }
             Role::Knitter => {
-                if let RoleStatement::Knitter(KnitterStatement{
-                    adjacent_count
-                }) = statement
-                {
+                if let RoleStatement::Knitter(KnitterStatement { adjacent_count }) = statement {
                     let true_adjacent_count = count_evil_pairs(true_roles);
 
                     *adjacent_count != true_adjacent_count
@@ -1166,15 +1179,12 @@ pub fn can_produce_statement(
     } else {
         match visible_role {
             Role::Alchemist => {
-                if let RoleStatement::Alchemist(AlchemistStatement{
-                    corrupt_count
-                }) = statement
-                {
+                if let RoleStatement::Alchemist(AlchemistStatement { corrupt_count }) = statement {
                     *corrupt_count == drunk_uncorruptions[position]
                 } else {
                     false
                 }
-            },
+            }
             Role::Bard => {
                 let closest_distance = closest_corrupt_distance(corruptions, position);
                 if let RoleStatement::Bard(BardStatement { distance }) = statement {
@@ -1203,13 +1213,14 @@ pub fn can_produce_statement(
                 }
             }
             Role::FortuneTeller => {
-                if let RoleStatement::FortuneTeller(
-                    FortuneTellerStatement{
-                        target_indexes,
-                        is_evil,
-                    }
-                ) = statement {
-                    let any_evil = target_indexes.iter_ones().any(|i| true_roles[i].alignment() == Alignment::Evil);
+                if let RoleStatement::FortuneTeller(FortuneTellerStatement {
+                    target_indexes,
+                    is_evil,
+                }) = statement
+                {
+                    let any_evil = target_indexes
+                        .iter_ones()
+                        .any(|i| true_roles[i].alignment() == Alignment::Evil);
                     return any_evil == *is_evil;
                 } else {
                     false
@@ -1254,10 +1265,7 @@ pub fn can_produce_statement(
                 }
             }
             Role::Knitter => {
-                if let RoleStatement::Knitter(KnitterStatement{
-                    adjacent_count
-                }) = statement
-                {
+                if let RoleStatement::Knitter(KnitterStatement { adjacent_count }) = statement {
                     let true_adjacent_count = count_evil_pairs(true_roles);
 
                     *adjacent_count == true_adjacent_count
