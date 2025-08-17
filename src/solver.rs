@@ -1,8 +1,8 @@
 use crate::roles::*;
 use itertools::izip;
 use itertools::Itertools;
+use rayon::prelude::*;
 use std::collections::HashMap;
-
 pub fn brute_force_solve(
     deck: &[Role],
     visible_roles: &[Option<Role>],
@@ -39,19 +39,18 @@ pub fn brute_force_solve(
         .filter(|r| r.alignment() != Alignment::Evil)
         .collect();
 
-    let mut valid = Vec::new();
-    let mut perm_current: Vec<Role> = Vec::with_capacity(n);
-
-    let mut wretch_assign: Vec<Role> = Vec::with_capacity(n);
-    let mut disguise_assign: Vec<Role> = Vec::with_capacity(n);
-
     // Try every possible combination of villagers, minions, and outcasts
-    for v_combo in &villager_combos {
+    villager_combos.par_iter().flat_map(|v_combo| {
         let deck_villager_not_in_play: Vec<Role> = deck
             .iter()
             .copied()
             .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
             .collect();
+
+        let mut local_valid = Vec::new();
+        let mut perm_current: Vec<Role> = Vec::with_capacity(n);
+        let mut wretch_assign: Vec<Role> = Vec::with_capacity(n);
+        let mut disguise_assign: Vec<Role> = Vec::with_capacity(n);
 
         for o_combo in &outcast_combos {
             let outcasts_not_in_play: Vec<Role> = deck
@@ -126,7 +125,7 @@ pub fn brute_force_solve(
                                         verbose
                                     );
                                     if success {
-                                        valid.push(candidate.to_vec());
+                                        local_valid.push(candidate.to_vec());
                                     }
                                     success
                                 },
@@ -137,9 +136,9 @@ pub fn brute_force_solve(
                 }
             }
         }
-    }
 
-    valid
+        local_valid
+    }).collect()
 }
 
 fn generate_role_variations(
