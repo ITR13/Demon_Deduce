@@ -487,7 +487,7 @@ impl Role {
                 }
             }
             Role::Judge => {
-                if let Some(caps) = regex::Regex::new(r"#(\d+).*(Truth|lying)")
+                if let Some(caps) = regex::Regex::new(r"#(\d+).*(Truth|Lying)")
                     .unwrap()
                     .captures(s)
                 {
@@ -496,7 +496,7 @@ impl Role {
                         .map_err(|_| format!("Invalid target index in Judge statement '{}'", s))?;
                     let is_lying = match &caps[2] {
                         "Truth" => false,
-                        "lying" => true,
+                        "Lying" => true,
                         _ => return Err(format!("Invalid claim type in Judge statement '{}'", s)),
                     };
                     Ok(JudgeStatement {
@@ -505,7 +505,7 @@ impl Role {
                     }
                     .into())
                 } else {
-                    Err(format!("Invalid Judge statement '{}' - expected format like '#3 is truthful' or '#3 is lying'", s))
+                    Err(format!("Invalid Judge statement '{}'", s))
                 }
             }
             Role::Empress => {
