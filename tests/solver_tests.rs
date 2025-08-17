@@ -15,7 +15,7 @@ fn finds_minion_with_typed_statements() {
         ConfessorStatement::IAmGood.into(),
         ConfessorStatement::IAmDizzy.into(),
     ];
-    let sols = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0);
+    let sols = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
     assert_eq!(sols.len(), 1);
     assert_eq!(
         sols[0],
@@ -43,7 +43,7 @@ fn example_minion_disguised_as_confessor() {
         ConfessorStatement::IAmDizzy.into(),
     ];
 
-    let sols = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0);
+    let sols = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
     assert_eq!(sols.len(), 1);
     let sol = &sols[0];
     assert_eq!(sol[0], Role::Confessor);
@@ -71,7 +71,7 @@ fn example_with_claim_statement() {
         ConfessorStatement::IAmDizzy.into(),
     ];
 
-    let _ = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0);
+    let _ = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn test_iam_good_iam_dizzy_unrevealed() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[1]),
@@ -115,7 +115,7 @@ fn test_iam_good_iam_good_unrevealed() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[2]),
@@ -143,7 +143,7 @@ fn test_iam_good_claim_1_is_good_unrevealed() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[2]),
@@ -180,7 +180,7 @@ fn test_lover_lover_unrevealed_minion_unrevealed() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),
@@ -217,7 +217,7 @@ fn test_lover_lover_unrevealed_unrevealed_minion() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
@@ -252,7 +252,7 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 3, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 3, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
@@ -310,7 +310,7 @@ fn test_empress_empress_empress() {
         .into(),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
@@ -356,7 +356,7 @@ fn test_hunter_lover() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),
@@ -401,7 +401,7 @@ fn test_enlightened() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
@@ -451,7 +451,7 @@ fn test_wretch() {
         HunterStatement { distance: 2 }.into(),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[4]),
@@ -508,7 +508,7 @@ fn test_twin_and_medium() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 1, 2, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 1, 2, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[0]),
@@ -561,7 +561,7 @@ fn test_jester() {
         RoleStatement::Unrevealed,
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 2, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 2, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[5]),
@@ -588,9 +588,9 @@ fn test_confirmed() {
     let deck = vec![Knight, Minion];
     let visible = vec![Some(Knight), Some(Knight)];
     let confirmed = vec![Some(Knight), None];
-    let observed: Vec<RoleStatement> = vec![RoleStatement::Unrevealed, RoleStatement::Unrevealed];
+    let observed: Vec<RoleStatement> = vec![RoleStatement::NoStatement, RoleStatement::NoStatement];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 1, 0, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 1, 0, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[1]),
@@ -635,7 +635,7 @@ fn test_scout() {
         EnlightenedStatement::Clockwise.into(),
     ];
 
-    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 1, 1, 0);
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 1, 1, 0, false);
     for solution in &solutions {
         assert!(
             is_evil(&solution[3]),
