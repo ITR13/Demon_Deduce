@@ -37,6 +37,8 @@ pub enum Role {
     Slayer,
     // Outcast
     Bombardier,
+    #[strum(serialize = "doppelganger", serialize = "doppleganger")]
+    DoppelGanger,
     PlagueDoctor,
     Wretch,
     // Minion
@@ -89,7 +91,7 @@ impl Role {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
             | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
             | Slayer => Group::Villager,
-            Bombardier | PlagueDoctor | Wretch => Group::Outcast,
+            Bombardier | DoppelGanger | PlagueDoctor | Wretch => Group::Outcast,
             Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
         }
@@ -99,7 +101,7 @@ impl Role {
         match self {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
             | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
-            | Slayer | Bombardier | PlagueDoctor | Wretch => Alignment::Good,
+            | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => Alignment::Good,
             Baa | Counsellor | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
         }
     }
@@ -108,7 +110,7 @@ impl Role {
         match self {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
             | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
-            | Slayer | Bombardier | PlagueDoctor | Wretch => false,
+            | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => false,
             Baa | Minion | Poisoner | TwinMinion | Witch | Counsellor => true,
         }
     }
@@ -353,6 +355,7 @@ impl Role {
             }
             Role::Knight
             | Role::Bombardier
+            | Role::DoppelGanger
             | Role::Wretch
             | Role::Minion
             | Role::Poisoner

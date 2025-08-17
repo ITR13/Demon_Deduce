@@ -26,14 +26,14 @@ pub fn brute_force_solve(
         generate_role_combinations(deck, villagers, outcasts, minions, demons);
 
     // Wretch needs to be replaced with any minion from the deck — precompute choices
-    let deck_minion_choices: Vec<Role> = deck
+    let deck_minions: Vec<Role> = deck
         .iter()
         .copied()
         .filter(|r| r.group() == Group::Minion)
         .collect();
 
     // Disguised minions can appear as any non-evil role — precompute choices
-    let deck_non_evil_choices: Vec<Role> = deck
+    let deck_non_evil: Vec<Role> = deck
         .iter()
         .copied()
         .filter(|r| r.alignment() != Alignment::Evil)
@@ -72,6 +72,12 @@ pub fn brute_force_solve(
                     );
 
                     for combined in combined_variations {
+                        let deck_villagers_in_play: Vec<_> = combined
+                            .iter()
+                            .copied()
+                            .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
+                            .collect();
+
                         // Prepare role counts for multiset permutation generation
                         let mut counts: HashMap<Role, usize> = HashMap::new();
                         for &r in &combined {
@@ -96,8 +102,9 @@ pub fn brute_force_solve(
                                 // Build possible Wretch replacements and minion disguises for each seat
                                 let (wretch_choices, disguise_choices) = build_choices(
                                     candidate,
-                                    &deck_minion_choices,
-                                    &deck_non_evil_choices,
+                                    &deck_minions,
+                                    &deck_non_evil,
+                                    &deck_villagers_in_play,
                                     &deck_villager_not_in_play,
                                 );
                                 // DFS through every possible Wretch assignment + disguise mapping
@@ -181,9 +188,10 @@ fn generate_role_variations(
 
 fn build_choices(
     candidate: &[Role],
-    deck_minion_choices: &[Role],
-    deck_non_evil_choices: &[Role],
-    deck_villager_not_in_play_choices: &[Role],
+    deck_minions: &[Role],
+    deck_non_evil: &[Role],
+    deck_villagers_in_play: &[Role],
+    deck_villager_not_in_play: &[Role],
 ) -> (Vec<Vec<Role>>, Vec<Vec<Role>>) {
     let mut wretch_choices = Vec::with_capacity(candidate.len());
     let mut disguise_choices = Vec::with_capacity(candidate.len());
@@ -192,7 +200,7 @@ fn build_choices(
         // Wretch choices
         wretch_choices.push(if r == Role::Wretch {
             // Wretch's "true role" is always some minion
-            deck_minion_choices.to_vec()
+            deck_minions.to_vec()
         } else {
             vec![r]
         });
@@ -200,9 +208,11 @@ fn build_choices(
         // Disguise choices
         let group = r.group();
         let choices = if group == Group::Demon {
-            deck_villager_not_in_play_choices.to_vec()
+            deck_villager_not_in_play.to_vec()
         } else if group == Group::Minion {
-            deck_non_evil_choices.to_vec()
+            deck_non_evil.to_vec()
+        } else if r == Role::DoppelGanger {
+            deck_villagers_in_play.to_vec()
         } else {
             vec![r]
         };
