@@ -33,6 +33,7 @@ pub enum Role {
     // Minion
     Minion,
     Poisoner,
+    #[strum(serialize = "twinminion", serialize = "twin minion")]
     TwinMinion,
     Witch,
     // Demon
@@ -477,7 +478,7 @@ impl Role {
             }
             Role::Scout => {
                 if let Some(caps) =
-                    regex::Regex::new(r"(\w+)\s+is\s+(\d+)\s*cards?\s*away from closest Evil")
+                    regex::Regex::new(r"(\w+(?:\s\w+))\s+is\s+(\d+)\s*cards?\s*away from closest Evil")
                         .unwrap()
                         .captures(s)
                 {
