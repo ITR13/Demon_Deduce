@@ -434,7 +434,7 @@ impl Role {
                 }
             }
             Role::Judge => {
-                if let Some(caps) = regex::Regex::new(r"#(\d+)\s+is\s+(truthful|lying)")
+                if let Some(caps) = regex::Regex::new(r"#(\d+).*(Truth|lying)")
                     .unwrap()
                     .captures(s)
                 {
@@ -442,7 +442,7 @@ impl Role {
                         .parse::<usize>()
                         .map_err(|_| format!("Invalid target index in Judge statement '{}'", s))?;
                     let is_lying = match &caps[2] {
-                        "truthful" => false,
+                        "Truth" => false,
                         "lying" => true,
                         _ => return Err(format!("Invalid claim type in Judge statement '{}'", s)),
                     };
@@ -532,6 +532,31 @@ impl Role {
                     Ok(KnitterStatement { adjacent_count }.into())
                 } else {
                     Err(format!("Invalid Knitter statement '{}' - expected format", s))
+                }
+            }
+            Role::PlagueDoctor => {
+                let s = s.to_lowercase();
+                if let Some(caps) = regex::Regex::new(r"#(\d+).*(?:#(\d+))?")
+                    .unwrap()
+                    .captures(&s)
+                {
+                    let corruption_index: usize = caps[1].parse().map_err(|_| {
+                        format!("invalid index in plague doctor statement '{}'", s)
+                    })?;
+                    let corruption_index = corruption_index - 1;
+
+                    let evil_index = caps.get(2).map(|m| {
+                        m.as_str().parse::<usize>().map_err(|_| {
+                            format!("invalid second index in plague doctor statement '{}'", s)
+                        }).map(|x| x - 1)
+                    }).transpose()?;
+
+                    Ok(PlagueDoctorStatement {
+                        corruption_index,
+                        evil_index,
+                    }.into())
+                } else {
+                    Err(format!("invalid plague doctor statement '{}'", s))
                 }
             }
             _ => Err(format!(
