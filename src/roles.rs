@@ -1430,7 +1430,7 @@ pub fn can_produce_statement(
             }
             Role::Medium => {
                 if let RoleStatement::Medium(MediumStatement { target_index, role }) = statement {
-                    *target_index < true_roles.len()
+                    *target_index != position
                         && true_roles[*target_index].alignment() == Alignment::Good
                         && *role == true_roles[*target_index]
                 } else {
