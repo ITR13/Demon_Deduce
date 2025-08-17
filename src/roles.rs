@@ -873,7 +873,7 @@ impl fmt::Display for HunterStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "I am {} card{} away from closest Corrupted character",
+            "I am {} card{} away from closest Evil",
             self.distance,
             if self.distance == 1 { "" } else { "s" },
         )
