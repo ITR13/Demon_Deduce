@@ -39,6 +39,8 @@ pub enum Role {
     PlagueDoctor,
     Wretch,
     // Minion
+    #[strum(serialize = "counsellor", serialize = "baron")]
+    Counsellor,
     Minion,
     Poisoner,
     #[strum(
@@ -88,7 +90,7 @@ impl Role {
                 Group::Villager
             }
             Bombardier | PlagueDoctor | Wretch => Group::Outcast,
-            Minion | Poisoner | TwinMinion | Witch => Group::Minion,
+            Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
         }
     }
@@ -98,7 +100,7 @@ impl Role {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
             | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Scout | Slayer
             | Bombardier | PlagueDoctor | Wretch => Alignment::Good,
-            Baa | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
+            Baa | Counsellor | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
@@ -107,7 +109,7 @@ impl Role {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
             | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Scout | Slayer
             | Bombardier | PlagueDoctor | Wretch => false,
-            Baa | Minion | Poisoner | TwinMinion | Witch => true,
+            Baa | Minion | Poisoner | TwinMinion | Witch | Counsellor => true,
         }
     }
     pub fn parse_statement(&self, s: &str) -> Result<RoleStatement, String> {
@@ -339,7 +341,8 @@ impl Role {
             | Role::Poisoner
             | Role::TwinMinion
             | Role::Witch
-            | Role::Baa => Err(format!(
+            | Role::Baa
+            | Role::Counsellor => Err(format!(
                 "No statement parsing implemented for {:?}",
                 self
             )),
@@ -362,10 +365,9 @@ impl Role {
             }
             Role::Bard => {
                 let s = s.to_lowercase();
-                if let Some(caps) =
-                    regex::Regex::new(r"i am (\d+) cards?")
-                        .unwrap()
-                        .captures(&s)
+                if let Some(caps) = regex::Regex::new(r"i am (\d+) cards?")
+                    .unwrap()
+                    .captures(&s)
                 {
                     let distance = caps[1]
                         .parse()

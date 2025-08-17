@@ -54,6 +54,7 @@ pub fn brute_force_solve(
             .collect();
 
         for m_combo in &minion_combos {
+            let has_counsellor = m_combo.iter().any(|&r| r == Role::Counsellor);
             for o_combo in &outcast_combos {
                 for d_combo in &demon_combos {
                     let combined: Vec<_> = v_combo
@@ -78,6 +79,7 @@ pub fn brute_force_solve(
                         &keys,
                         &mut perm_current,
                         n,
+                        has_counsellor,
                         &mut |candidate: &[Role]| {
                             // Immediately discard if known confirmed roles don’t match
                             if !confirmed_roles_ok(candidate, confirmed_roles) {
@@ -91,7 +93,6 @@ pub fn brute_force_solve(
                                 &deck_non_evil_choices,
                                 &deck_villager_not_in_play_choices,
                             );
-
                             // DFS through every possible Wretch assignment + disguise mapping
                             assign_disguises_and_check(
                                 candidate,
@@ -103,7 +104,6 @@ pub fn brute_force_solve(
                                 0,
                                 &mut |full_wretch_assign: &[Role], full_disguise_assign: &[Role]| {
                                     // If the resulting seating matches all observed statements, keep it
-
                                     let success = statements_match(
                                         candidate,
                                         full_wretch_assign,
@@ -219,11 +219,34 @@ fn permute_multiset<F>(
     keys: &[Role],
     current: &mut Vec<Role>,
     target_len: usize,
+    has_counsellor: bool,
     process: &mut F,
 ) where
     F: FnMut(&[Role]),
 {
     if current.len() == target_len {
+        // This can be optimized by checking for it earlier in the run
+        if let Some(counsellor_pos) = current.iter().position(|&r| r == Role::Counsellor) {
+            let len = current.len();
+            let left_pos = if counsellor_pos == 0 {
+                len - 1
+            } else {
+                counsellor_pos - 1
+            };
+            let right_pos = if counsellor_pos == len - 1 {
+                0
+            } else {
+                counsellor_pos + 1
+            };
+
+            let has_adjacent_outcast = current[left_pos].group() == Group::Outcast
+                || current[right_pos].group() == Group::Outcast;
+
+            if !has_adjacent_outcast {
+                return;
+            }
+        }
+
         process(current.as_slice());
         return;
     }
@@ -238,7 +261,7 @@ fn permute_multiset<F>(
         counts.insert(k, cnt - 1);
         current.push(k);
 
-        permute_multiset(counts, keys, current, target_len, process);
+        permute_multiset(counts, keys, current, target_len, has_counsellor, process);
         // Restore state after exploring this branch
         current.pop();
         counts.insert(k, cnt);

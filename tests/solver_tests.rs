@@ -727,3 +727,32 @@ fn test_fortune_teller() {
         solutions
     );
 }
+
+#[test]
+fn test_counsellor() {
+    use Role::*;
+    let deck = vec![Wretch, Confessor, Knight, Jester, Counsellor];
+    let visible = vec![Some(Wretch), Some(Confessor), Some(Knight), Some(Jester)];
+    let confirmed = vec![None; visible.len()];
+    let observed: Vec<RoleStatement> = vec![
+        RoleStatement::NoStatement,
+        ConfessorStatement::IAmGood.into(),
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 1, 1, 0, false);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[3]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
