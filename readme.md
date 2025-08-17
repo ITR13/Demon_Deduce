@@ -38,6 +38,7 @@ The format for this is:
 - ✅ Confessor
 - ✅ Empress
 - ✅ Enlightened
+- ✅ Fortune Teller
 - ✅ Gemcrafter
 - ✅ Hunter
 - ✅ Jester
@@ -53,7 +54,6 @@ The format for this is:
 - ❌ Bishop
 - ❌ Dreamer
 - ❌ Druid
-- ❌ Fortune Teller
 - ❌ Oracle
 - ❌ Poet
 - ❌ Witness

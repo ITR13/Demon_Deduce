@@ -15,6 +15,7 @@ pub enum Role {
     Confessor,
     Empress,
     Enlightened,
+    FortuneTeller,
     #[strum(serialize = "gemcrafter", serialize = "archivist")]
     Gemcrafter,
     Hunter,
@@ -73,7 +74,7 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
+            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Scout | Slayer => Group::Villager,
             Bombardier | PlagueDoctor | Wretch => Group::Outcast,
             Minion | Poisoner | TwinMinion | Witch => Group::Minion,
@@ -83,7 +84,7 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
+            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
                 Alignment::Good
             }
@@ -93,7 +94,7 @@ impl Role {
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
+            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
                 false
             }
@@ -158,6 +159,23 @@ impl Role {
                     s
                 )),
             },
+            Role::FortuneTeller => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    return Err(format!(
+                        "Invalid Jester statement '{}' - expected format 'indexes;evil'",
+                        s
+                    ));
+                }
+                let target_indexes = parse_indexes(parts[0])?;
+                let is_evil: bool = parts[1].trim().parse().map_err(|_|{
+                    format!("Invalid bool '{}' for FortuneTeller", parts[1])
+                })?;
+                Ok(FortuneTellerStatement {
+                    target_indexes,
+                    is_evil,
+                }.into())
+            }
             Role::Gemcrafter => {
                 let target_index = s.trim().parse().map_err(|_| {
                     format!("Invalid target index '{}' for Gemcrafter", s)
@@ -559,6 +577,25 @@ impl Role {
                     Err(format!("invalid plague doctor statement '{}'", s))
                 }
             }
+            Role::FortuneTeller => {
+                if let Some(caps) =
+                    regex::Regex::new(r"#(\d+).*#(\d+).*(True|False)")
+                        .unwrap()
+                        .captures(s)
+                {
+                    let first: usize = caps[1]
+                        .parse()
+                        .map_err(|_| format!("Invalid index in FortuneTeller statement '{}'", s))?;
+                    let second: usize = caps[2]
+                        .parse()
+                        .map_err(|_| format!("Invalid index in FortuneTeller statement '{}'", s))?;
+                    let is_evil = caps[3] == *"True";
+                    let target_indexes = to_bitvec(vec![first-1, second-1]);
+                    Ok(FortuneTellerStatement { target_indexes, is_evil }.into())
+                } else {
+                    Err(format!("Invalid Scout statement '{}'", s))
+                }
+            }
             _ => Err(format!(
                 "No natural statement parsing implemented for {:?}",
                 self
@@ -608,6 +645,7 @@ role_statements! {
     Confessor(ConfessorStatement),
     Empress(EmpressStatement),
     Enlightened(EnlightenedStatement),
+    FortuneTeller(FortuneTellerStatement),
     Gemcrafter(GemcrafterStatement),
     Hunter(HunterStatement),
     Jester(JesterStatement),
@@ -694,6 +732,18 @@ pub enum EnlightenedStatement {
 impl fmt::Display for EnlightenedStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Closest Evil is {:?}", self)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FortuneTellerStatement {
+    pub target_indexes: TargetIndexes,
+    pub is_evil: bool,
+}
+
+impl fmt::Display for FortuneTellerStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Is {:?} Evil?: {}", self.target_indexes.iter_ones().collect::<Vec<_>>(), self.is_evil)
     }
 }
 
@@ -975,6 +1025,19 @@ pub fn can_produce_statement(
                     false
                 }
             }
+            Role::FortuneTeller => {
+                if let RoleStatement::FortuneTeller(
+                    FortuneTellerStatement{
+                        target_indexes,
+                        is_evil,
+                    }
+                ) = statement {
+                    let any_evil = target_indexes.iter_ones().any(|i| true_roles[i].alignment() == Alignment::Evil);
+                    return any_evil != *is_evil;
+                } else {
+                    false
+                }
+            }
             Role::Gemcrafter => {
                 if let RoleStatement::Gemcrafter(GemcrafterStatement { target_index }) = statement {
                     *target_index < true_roles.len()
@@ -1135,6 +1198,19 @@ pub fn can_produce_statement(
                                 Alignment::Good => (evil, good + 1),
                             });
                     evil_count == 1 && good_count == 2
+                } else {
+                    false
+                }
+            }
+            Role::FortuneTeller => {
+                if let RoleStatement::FortuneTeller(
+                    FortuneTellerStatement{
+                        target_indexes,
+                        is_evil,
+                    }
+                ) = statement {
+                    let any_evil = target_indexes.iter_ones().any(|i| true_roles[i].alignment() == Alignment::Evil);
+                    return any_evil == *is_evil;
                 } else {
                     false
                 }

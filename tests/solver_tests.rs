@@ -650,3 +650,74 @@ fn test_scout() {
         solutions
     );
 }
+
+#[test]
+fn test_fortune_teller() {
+    use Role::*;
+
+    let deck = vec![
+        Alchemist, Confessor, Judge, FortuneTeller, Empress, PlagueDoctor, Minion, Witch,
+    ];
+
+    let visible = vec![
+        Some(Empress),
+        Some(Confessor),
+        Some(Confessor),
+        Some(FortuneTeller),
+        Some(PlagueDoctor),
+        Some(Alchemist),
+        None,
+        Some(Judge),
+    ];
+
+    let mut confirmed = vec![None; visible.len()];
+    confirmed[2] = Some(Minion);
+
+    let observed: Vec<RoleStatement> = vec![
+        EmpressStatement {
+            target_indexes: to_bitvec(vec![5, 6, 7]),
+        }
+        .into(),
+        ConfessorStatement::IAmDizzy.into(),
+        ConfessorStatement::IAmDizzy.into(),
+        FortuneTellerStatement {
+            target_indexes: to_bitvec(vec![0, 1]),
+            is_evil: false,
+        }
+        .into(),
+        PlagueDoctorStatement {
+            corruption_index: 2,
+            evil_index: None,
+        }
+        .into(),
+        AlchemistStatement { corrupt_count: 0 }.into(),
+        RoleStatement::NoStatement,
+        JudgeStatement {
+            target_index: 5,
+            is_lying: false,
+        }
+        .into(),
+    ];
+
+    let solutions =
+        brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 2, 0, false);
+
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[2]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+        assert!(
+            is_evil(&solution[6]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
