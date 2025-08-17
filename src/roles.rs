@@ -31,6 +31,7 @@ pub enum Role {
     Lover,
     #[strum(serialize = "medium", serialize = "lookout")]
     Medium,
+    Oracle,
     Scout,
     #[strum(serialize = "slayer", serialize = "gambler")]
     Slayer,
@@ -86,9 +87,8 @@ impl Role {
         use Role::*;
         match self {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
-            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Scout | Slayer => {
-                Group::Villager
-            }
+            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
+            | Slayer => Group::Villager,
             Bombardier | PlagueDoctor | Wretch => Group::Outcast,
             Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
@@ -98,8 +98,8 @@ impl Role {
         use Role::*;
         match self {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
-            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Scout | Slayer
-            | Bombardier | PlagueDoctor | Wretch => Alignment::Good,
+            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
+            | Slayer | Bombardier | PlagueDoctor | Wretch => Alignment::Good,
             Baa | Counsellor | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
         }
     }
@@ -107,8 +107,8 @@ impl Role {
         use Role::*;
         match self {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
-            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Scout | Slayer
-            | Bombardier | PlagueDoctor | Wretch => false,
+            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
+            | Slayer | Bombardier | PlagueDoctor | Wretch => false,
             Baa | Minion | Poisoner | TwinMinion | Witch | Counsellor => true,
         }
     }
@@ -272,6 +272,23 @@ impl Role {
                     )
                 })?;
                 Ok(MediumStatement { target_index, role }.into())
+            }
+            Role::Oracle => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    return Err(format!(
+                        "Invalid Oracle statement '{}' - expected format 'target_indexes;role'",
+                        s
+                    ));
+                }
+                let target_indexes = parse_indexes(parts[0])?;
+                let role: Role = parts[1].trim().to_lowercase().parse().map_err(|e| {
+                    format!(
+                        "Invalid target role '{}' in Oracle statement: {}",
+                        parts[1], e
+                    )
+                })?;
+                Ok(OracleStatement { target_indexes, role }.into())
             }
             Role::Scout => {
                 let parts: Vec<&str> = s.split(';').collect();
@@ -645,6 +662,37 @@ impl Role {
                     Err(format!("Invalid Empress statement '{}' - expected format like 'One is Evil: #8, #1 or #7'", s))
                 }
             }
+            Role::Oracle => {
+                if let Some(caps) = regex::Regex::new(r"#(\d+) or #(\d+) is a (\w+)")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let mut indexes = Vec::new();
+                    for i in 1..=2 {
+                        if let Some(m) = caps.get(i) {
+                            let idx: usize = m.as_str().parse().map_err(|_| {
+                                format!("Invalid index in Oracle statement '{}'", s)
+                            })?;
+                            indexes.push(idx - 1);
+                        }
+                    }
+                    let target_indexes = to_bitvec(indexes);
+                    let role: Role = caps[3].trim().to_lowercase().parse().map_err(|e| {
+                        format!(
+                            "Invalid target role '{}' in Oracle statement: {}",
+                            &caps[3], e
+                        )
+                    })?;
+
+                    Ok(OracleStatement {
+                        target_indexes,
+                        role,
+                    }
+                    .into())
+                } else {
+                    Err(format!("Invalid Oracle statement '{}'", s))
+                }
+            }
             _ => Err(format!(
                 "No natural statement parsing implemented for {:?}",
                 self
@@ -702,6 +750,7 @@ role_statements! {
     Knitter(KnitterStatement),
     Lover(LoverStatement),
     Medium(MediumStatement),
+    Oracle(OracleStatement),
     Scout(ScoutStatement),
     Slayer(SlayerStatement),
     PlagueDoctor(PlagueDoctorStatement),
@@ -893,6 +942,27 @@ pub struct MediumStatement {
 impl fmt::Display for MediumStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{} is {}", self.target_index, self.role)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OracleStatement {
+    pub target_indexes: TargetIndexes,
+    pub role: Role,
+}
+
+impl fmt::Display for OracleStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Among {} there is a {}",
+            self.target_indexes
+                .iter_ones()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.role
+        )
     }
 }
 
@@ -1157,6 +1227,19 @@ pub fn can_produce_statement(
                     false
                 }
             }
+            Role::Oracle => {
+                if let RoleStatement::Oracle(OracleStatement {
+                    target_indexes,
+                    role: _,
+                }) = statement
+                {
+                    target_indexes
+                        .iter_ones()
+                        .all(|i| true_roles[i].alignment() != Alignment::Evil)
+                } else {
+                    false
+                }
+            }
             Role::Scout => {
                 if let RoleStatement::Scout(ScoutStatement { role, distance }) = statement {
                     true_roles
@@ -1319,6 +1402,24 @@ pub fn can_produce_statement(
                     *target_index < true_roles.len()
                         && true_roles[*target_index].alignment() == Alignment::Good
                         && *role == true_roles[*target_index]
+                } else {
+                    false
+                }
+            }
+            Role::Oracle => {
+                if let RoleStatement::Oracle(OracleStatement {
+                    target_indexes,
+                    role,
+                }) = statement
+                {
+                    let mut targets = target_indexes.iter_ones();
+                    let first = targets.next().unwrap();
+                    let second = targets.next().unwrap();
+
+                    (true_roles[first].alignment() == Alignment::Good
+                        && true_roles[second] == *role)
+                        || (true_roles[second].alignment() == Alignment::Good
+                            && true_roles[first] == *role)
                 } else {
                     false
                 }
