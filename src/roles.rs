@@ -1245,15 +1245,11 @@ pub fn can_produce_statement(
             }
             Role::Scout => {
                 if let RoleStatement::Scout(ScoutStatement { role, distance }) = statement {
-                    true_roles
-                        .iter()
-                        .any(|r| r == role && r.alignment() == Alignment::Evil)
-                        && *distance
-                            != closest_evil_distance(
-                                true_roles,
-                                true_roles.iter().position(|r| r == role).unwrap(),
-                            )
-                        && *distance <= (true_roles.len() + 1) / 2
+                    !true_roles.iter().enumerate().any(|(idx, r)| {
+                        r == role &&
+                        *distance == closest_evil_distance(true_roles, idx) &&
+                        true_roles[idx].alignment() == Alignment::Evil
+                    })
                 } else {
                     false
                 }
@@ -1429,12 +1425,11 @@ pub fn can_produce_statement(
             }
             Role::Scout => {
                 if let RoleStatement::Scout(ScoutStatement { role, distance }) = statement {
-                    if let Some(idx) = true_roles.iter().position(|r| r == role) {
-                        *distance == closest_evil_distance(true_roles, idx)
-                            && true_roles[idx].alignment() == Alignment::Evil
-                    } else {
-                        false
-                    }
+                    true_roles.iter().enumerate().any(|(idx, r)| {
+                        r == role &&
+                        *distance == closest_evil_distance(true_roles, idx) &&
+                        true_roles[idx].alignment() == Alignment::Evil
+                    })
                 } else {
                     false
                 }

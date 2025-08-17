@@ -756,3 +756,65 @@ fn test_counsellor() {
         solutions
     );
 }
+
+#[test]
+fn test_scout_2() {
+    use Role::*;
+    let deck = vec![
+        Lover,
+        Confessor,
+        Enlightened,
+        Scout,
+        Knight,
+        Hunter,
+        Bombardier,
+        Wretch,
+        Witch,
+        Baa,
+    ];
+    let visible = vec![
+        Some(Enlightened),
+        Some(Wretch),
+        Some(Knight),
+        Some(Scout),
+        Some(Confessor),
+        Some(Hunter),
+        Some(Knight),
+        None,
+    ];
+    let confirmed = vec![None; visible.len()];
+    let observed: Vec<RoleStatement> = vec![
+        EnlightenedStatement::Clockwise.into(),
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        ScoutStatement {
+            distance: 2,
+            role: Witch,
+        }
+        .into(),
+        ConfessorStatement::IAmDizzy.into(),
+        HunterStatement { distance: 1 }.into(),
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 1, 1, false);
+    for solution in &solutions {
+        assert!(
+            is_evil(&solution[4]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+        assert!(
+            is_evil(&solution[6]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+}
