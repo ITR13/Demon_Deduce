@@ -15,6 +15,11 @@ pub enum Role {
     Confessor,
     Empress,
     Enlightened,
+    #[strum(
+        serialize = "fortuneteller",
+        serialize = "fortune teller",
+        serialize = "fortune"
+    )]
     FortuneTeller,
     #[strum(serialize = "gemcrafter", serialize = "archivist")]
     Gemcrafter,
@@ -36,7 +41,11 @@ pub enum Role {
     // Minion
     Minion,
     Poisoner,
-    #[strum(serialize = "twinminion", serialize = "twin minion")]
+    #[strum(
+        serialize = "twinminion",
+        serialize = "twin minion",
+        serialize = "twin"
+    )]
     TwinMinion,
     Witch,
     // Demon
@@ -522,12 +531,7 @@ impl Role {
                 }
             }
             Role::Scout => {
-                if let Some(caps) = regex::Regex::new(
-                    r"(\w+(?:\s\w+))\s+is\s+(\d+)\s*cards?\s*away from closest Evil",
-                )
-                .unwrap()
-                .captures(s)
-                {
+                if let Some(caps) = regex::Regex::new(r"(\w+).*(\d+)").unwrap().captures(s) {
                     let role = Role::from_str(&caps[1].to_lowercase())
                         .map_err(|_| format!("Invalid role '{}' in Scout statement", &caps[1]))?;
                     let distance = caps[2]
@@ -873,7 +877,7 @@ impl fmt::Display for ScoutStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} is {} card away from closest Evil",
+            "{} is {} card(s) away from closest Evil",
             self.role, self.distance
         )
     }
