@@ -42,6 +42,7 @@ The format for this is:
 - ✅ Jester
 - ✅ Judge
 - ✅ Knight
+- ✅ Knitter
 - ✅ Lover
 - ✅ Medium
 - ✅ Scout
@@ -53,7 +54,6 @@ The format for this is:
 - ❌ Dreamer
 - ❌ Druid
 - ❌ Fortune Teller
-- ❌ Knitter
 - ❌ Oracle
 - ❌ Poet
 - ❌ Witness

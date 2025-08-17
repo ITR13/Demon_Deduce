@@ -20,6 +20,7 @@ pub enum Role {
     Jester,
     Judge,
     Knight,
+    Knitter,
     Lover,
     #[strum(serialize = "medium", serialize = "lookout")]
     Medium,
@@ -72,7 +73,7 @@ impl Role {
         use Role::*;
         match self {
             Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
-            | Knight | Lover | Medium | Scout | Slayer => Group::Villager,
+            | Knight | Knitter | Lover | Medium | Scout | Slayer => Group::Villager,
             Bombardier | PlagueDoctor | Wretch => Group::Outcast,
             Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa => Group::Demon,
@@ -82,7 +83,7 @@ impl Role {
         use Role::*;
         match self {
             Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
-            | Knight | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
+            | Knight | Knitter | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
                 Alignment::Good
             }
             Baa | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
@@ -92,7 +93,7 @@ impl Role {
         use Role::*;
         match self {
             Bard | Confessor | Empress | Enlightened | Gemcrafter | Hunter | Jester | Judge
-            | Knight | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
+            | Knight | Knitter | Lover | Medium | Scout | Slayer | Bombardier | PlagueDoctor | Wretch => {
                 false
             }
             Baa | Minion | Poisoner | TwinMinion | Witch => true,
@@ -204,6 +205,12 @@ impl Role {
                     target_index,
                     is_lying,
                 }.into())
+            }
+            Role::Knitter => {
+                let adjacent_count = s.trim().parse().map_err(|_| {
+                    format!("Invalid adjacent count '{}' for Knitter", s)
+                })?;
+                Ok(KnitterStatement { adjacent_count }.into())
             }
             Role::Lover => {
                 let evil_count = s.trim().parse().map_err(|_| {
@@ -492,7 +499,21 @@ impl Role {
                     Err(format!("Invalid Scout statement '{}' - expected format like 'Minion is 1 card away from closest Evil'", s))
                 }
             }
-            Role::Knight => Err("Knight does not make statements in this game".to_string()),
+            Role::Knitter => {
+                if s.trim().eq_ignore_ascii_case("Evils are not adjacent to eachother") {
+                    Ok(KnitterStatement { adjacent_count: 0 }.into())
+                } else if let Some(caps) = regex::Regex::new(r"(\d+)")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let adjacent_count = caps[1]
+                        .parse()
+                        .map_err(|_| format!("Invalid evil count in Knitter statement '{}'", s))?;
+                    Ok(KnitterStatement { adjacent_count }.into())
+                } else {
+                    Err(format!("Invalid Knitter statement '{}' - expected format", s))
+                }
+            }
             _ => Err(format!(
                 "No natural statement parsing implemented for {:?}",
                 self
@@ -545,6 +566,7 @@ role_statements! {
     Hunter(HunterStatement),
     Jester(JesterStatement),
     Judge(JudgeStatement),
+    Knitter(KnitterStatement),
     Lover(LoverStatement),
     Medium(MediumStatement),
     Scout(ScoutStatement),
@@ -676,6 +698,17 @@ impl fmt::Display for JudgeStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let claim_str = if self.is_lying { "Lying" } else { "Truthful" };
         write!(f, "#{} is {}", self.target_index, claim_str)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KnitterStatement {
+    pub adjacent_count: usize,
+}
+
+impl fmt::Display for KnitterStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "There are {} Evil pairs", self.adjacent_count)
     }
 }
 
@@ -816,6 +849,16 @@ pub fn closest_corrupt_distance(corruptions: &[bool], position: usize) -> Option
     })
 }
 
+pub fn count_evil_pairs(true_roles: &[Role]) -> usize {
+    true_roles
+        .windows(2)
+        .filter(|w|
+            w[0].alignment() == Alignment::Evil &&
+            w[1].alignment() == Alignment::Evil
+        )
+        .count()
+}
+
 /// Check if a card can produce a specific statement given:
 /// - `visible_role`: what role is shown (may be a disguise)
 /// - `is_lying`: if the character should lie
@@ -899,6 +942,18 @@ pub fn can_produce_statement(
                 {
                     *target_index < true_roles.len()
                         && *stmt_lying == true_roles[*target_index].lying()
+                } else {
+                    false
+                }
+            }
+            Role::Knitter => {
+                if let RoleStatement::Knitter(KnitterStatement{
+                    adjacent_count
+                }) = statement
+                {
+                    let true_adjacent_count = count_evil_pairs(true_roles);
+
+                    *adjacent_count != true_adjacent_count
                 } else {
                     false
                 }
@@ -1042,6 +1097,18 @@ pub fn can_produce_statement(
                 {
                     *target_index < true_roles.len()
                         && *stmt_lying == true_roles[*target_index].lying()
+                } else {
+                    false
+                }
+            }
+            Role::Knitter => {
+                if let RoleStatement::Knitter(KnitterStatement{
+                    adjacent_count
+                }) = statement
+                {
+                    let true_adjacent_count = count_evil_pairs(true_roles);
+
+                    *adjacent_count == true_adjacent_count
                 } else {
                     false
                 }
