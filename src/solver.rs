@@ -320,7 +320,7 @@ fn statements_match(
             izip!(candidate.iter(), disguise_assign.iter(), corruption.iter()).enumerate()
         {
             let obs = &observed_statements[idx];
-            if *obs == RoleStatement::Unrevealed {
+            if *obs == RoleStatement::NoStatement {
                 continue;
             }
 

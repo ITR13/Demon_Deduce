@@ -84,7 +84,7 @@ fn test_iam_good_iam_dizzy_unrevealed() {
     let observed: Vec<RoleStatement> = vec![
         ConfessorStatement::IAmGood.into(),
         ConfessorStatement::IAmDizzy.into(),
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
@@ -112,7 +112,7 @@ fn test_iam_good_iam_good_unrevealed() {
     let observed: Vec<RoleStatement> = vec![
         ConfessorStatement::IAmGood.into(),
         ConfessorStatement::IAmGood.into(),
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
@@ -140,7 +140,7 @@ fn test_iam_good_claim_1_is_good_unrevealed() {
     let observed: Vec<RoleStatement> = vec![
         ConfessorStatement::IAmGood.into(),
         GemcrafterStatement { target_index: 0 }.into(),
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
@@ -175,9 +175,9 @@ fn test_lover_lover_unrevealed_minion_unrevealed() {
     let observed: Vec<RoleStatement> = vec![
         LoverStatement { evil_count: 0 }.into(),
         LoverStatement { evil_count: 0 }.into(),
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0, false);
@@ -212,9 +212,9 @@ fn test_lover_lover_unrevealed_unrevealed_minion() {
     let observed: Vec<RoleStatement> = vec![
         LoverStatement { evil_count: 1 }.into(),
         LoverStatement { evil_count: 0 }.into(),
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 0, 1, 0, false);
@@ -249,7 +249,7 @@ fn test_loverminion_lover_unrevealed_unrevealed() {
         LoverStatement { evil_count: 1 }.into(),
         LoverStatement { evil_count: 1 }.into(),
         LoverStatement { evil_count: 0 }.into(),
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 3, 0, 1, 0, false);
@@ -350,10 +350,10 @@ fn test_hunter_lover() {
     let observed: Vec<RoleStatement> = vec![
         HunterStatement { distance: 3 }.into(),
         LoverStatement { evil_count: 0 }.into(),
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 0, 1, 0, false);
@@ -396,9 +396,9 @@ fn test_enlightened() {
         GemcrafterStatement { target_index: 2 }.into(),
         EnlightenedStatement::Equidistant.into(),
         LoverStatement { evil_count: 0 }.into(),
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 0, 1, 0, false);
@@ -445,9 +445,9 @@ fn test_wretch() {
         .into(),
         LoverStatement { evil_count: 0 }.into(),
         ConfessorStatement::IAmGood.into(),
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
         LoverStatement { evil_count: 0 }.into(),
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
         HunterStatement { distance: 2 }.into(),
     ];
 
@@ -504,8 +504,8 @@ fn test_twin_and_medium() {
         GemcrafterStatement { target_index: 0 }.into(),
         LoverStatement { evil_count: 1 }.into(),
         GemcrafterStatement { target_index: 3 }.into(),
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 4, 1, 2, 0, false);
@@ -552,13 +552,13 @@ fn test_jester() {
             evil_count: 1,
         }
         .into(),
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
         LoverStatement { evil_count: 1 }.into(),
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
         HunterStatement { distance: 4 }.into(),
         LoverStatement { evil_count: 0 }.into(),
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
     ];
 
     let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 5, 1, 2, 0, false);
@@ -620,13 +620,13 @@ fn test_scout() {
     ];
     let confirmed = vec![None; visible.len()];
     let observed: Vec<RoleStatement> = vec![
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
         EmpressStatement {
             target_indexes: to_bitvec(vec![2, 3, 4]),
         }
         .into(),
-        RoleStatement::Unrevealed,
-        RoleStatement::Unrevealed,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
         ScoutStatement {
             role: Witch,
             distance: 3,

@@ -502,7 +502,7 @@ impl Role {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RoleStatement {
-    Unrevealed,
+    NoStatement,
     Bard(BardStatement),
     Confessor(ConfessorStatement),
     Empress(EmpressStatement),
@@ -599,7 +599,7 @@ impl From<PlagueDoctorStatement> for RoleStatement {
 impl fmt::Display for RoleStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RoleStatement::Unrevealed => write!(f, "Unrevealed"),
+            RoleStatement::NoStatement => write!(f, "No Statment"),
             RoleStatement::Bard(stmt) => stmt.fmt(f),
             RoleStatement::Confessor(stmt) => stmt.fmt(f),
             RoleStatement::Empress(stmt) => stmt.fmt(f),
@@ -1036,7 +1036,7 @@ pub fn can_produce_statement(
                 }
             }
             Role::Bombardier | Role::Wretch | Role::Knight => {
-                *statement == RoleStatement::Unrevealed
+                *statement == RoleStatement::NoStatement
             }
             other => panic!(
                 "can_produce_statement: unsupported role combination: visible={:?}, lying={:?}",
@@ -1171,7 +1171,7 @@ pub fn can_produce_statement(
                 }
             }
             Role::Wretch | Role::Bombardier | Role::Knight => {
-                *statement == RoleStatement::Unrevealed
+                *statement == RoleStatement::NoStatement
             }
             other => panic!(
                 "can_produce_statement: unsupported role combination: true={:?}, visible={:?}",

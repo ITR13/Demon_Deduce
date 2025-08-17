@@ -74,7 +74,7 @@ fn parse_clipboard(content: &str) {
 
     let mut visible = vec![None; num_seats];
     let mut confirmed = vec![None; num_seats];
-    let mut observed = vec![RoleStatement::Unrevealed; num_seats];
+    let mut observed = vec![RoleStatement::NoStatement; num_seats];
 
     let mut has_errors = false;
 
@@ -291,7 +291,7 @@ fn parse_input(
                 || parts[2].eq_ignore_ascii_case("?")
                 || parts[2].eq_ignore_ascii_case("unrevealed")
             {
-                RoleStatement::Unrevealed
+                RoleStatement::NoStatement
             } else {
                 let role = role.ok_or_else(|| {
                     format!(
