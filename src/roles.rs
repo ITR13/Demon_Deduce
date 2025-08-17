@@ -964,7 +964,7 @@ pub fn closest_evil_distance(true_roles: &[Role], position: usize) -> usize {
     let max_index = (true_roles.len() + 1) / 2;
     (1..=max_index)
         .find(|&i| count_neighbor_evil(true_roles, position, i) > 0)
-        .unwrap_or(1)
+        .unwrap_or(true_roles.len())
 }
 
 pub fn closest_corrupt_distance(corruptions: &[bool], position: usize) -> Option<usize> {
@@ -1065,7 +1065,7 @@ pub fn can_produce_statement(
             Role::Hunter => {
                 let index = closest_evil_distance(true_roles, position);
                 if let RoleStatement::Hunter(HunterStatement { distance }) = statement {
-                    *distance != index && *distance <= (true_roles.len() + 1) / 2
+                    *distance != index
                 } else {
                     false
                 }
