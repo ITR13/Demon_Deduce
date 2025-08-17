@@ -363,7 +363,7 @@ impl Role {
             Role::Bard => {
                 let s = s.to_lowercase();
                 if let Some(caps) =
-                    regex::Regex::new(r"i am (\d+) cards? away from (corrupted|evil)")
+                    regex::Regex::new(r"i am (\d+) cards?")
                         .unwrap()
                         .captures(&s)
                 {
@@ -374,7 +374,7 @@ impl Role {
                         distance: Some(distance),
                     }
                     .into())
-                } else if s.trim() == "none" {
+                } else if s.trim() == "there are no corrupted characters" {
                     Ok(BardStatement { distance: None }.into())
                 } else {
                     Err(format!("invalid bard statement '{}' - expected format like 'i am 2 cards away from corrupted' or 'none'", s))
@@ -614,6 +614,33 @@ impl Role {
                     .into())
                 } else {
                     Err(format!("Invalid Scout statement '{}'", s))
+                }
+            }
+            Role::Jester => {
+                if let Some(caps) = regex::Regex::new(r"#(\d+).*#(\d+).*#(\d+).*(\d+) Evils")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let mut indexes = Vec::new();
+                    for i in 1..=3 {
+                        if let Some(m) = caps.get(i) {
+                            let idx: usize = m.as_str().parse().map_err(|_| {
+                                format!("Invalid index in Empress statement '{}'", s)
+                            })?;
+                            indexes.push(idx - 1);
+                        }
+                    }
+                    let target_indexes = to_bitvec(indexes);
+                    let evil_count: usize = caps[4]
+                        .parse()
+                        .map_err(|_| format!("Invalid index in Empress statement '{}'", s))?;
+                    Ok(JesterStatement {
+                        target_indexes,
+                        evil_count,
+                    }
+                    .into())
+                } else {
+                    Err(format!("Invalid Empress statement '{}' - expected format like 'One is Evil: #8, #1 or #7'", s))
                 }
             }
             _ => Err(format!(
