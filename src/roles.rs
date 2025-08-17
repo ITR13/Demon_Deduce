@@ -293,6 +293,10 @@ impl Role {
                 Ok(OracleStatement { target_indexes, role }.into())
             }
             Role::Scout => {
+                if s.to_lowercase() == "none" {
+                    return Ok(ScoutStatement {role: None, distance:0}.into());
+                }
+
                 let parts: Vec<&str> = s.split(';').collect();
                 if parts.len() != 2 {
                     return Err(format!(
@@ -306,7 +310,7 @@ impl Role {
                 let distance = parts[1].trim().parse().map_err(|_| {
                     format!("Invalid distance '{}' in Scout statement", parts[1])
                 })?;
-                Ok(ScoutStatement { role, distance }.into())
+                Ok(ScoutStatement { role: Some(role), distance }.into())
             }
             Role::Slayer => {
                 let parts: Vec<&str> = s.split(';').collect();
@@ -553,13 +557,23 @@ impl Role {
                 }
             }
             Role::Scout => {
-                if let Some(caps) = regex::Regex::new(r"(\w+).*(\d+)").unwrap().captures(s) {
+                if s == "There is only 1 Evil" {
+                    Ok(ScoutStatement {
+                        role: None,
+                        distance: 0,
+                    }
+                    .into())
+                } else if let Some(caps) = regex::Regex::new(r"(\w+).*(\d+)").unwrap().captures(s) {
                     let role = Role::from_str(&caps[1].to_lowercase())
                         .map_err(|_| format!("Invalid role '{}' in Scout statement", &caps[1]))?;
                     let distance = caps[2]
                         .parse()
                         .map_err(|_| format!("Invalid distance in Scout statement '{}'", s))?;
-                    Ok(ScoutStatement { role, distance }.into())
+                    Ok(ScoutStatement {
+                        role: Some(role),
+                        distance,
+                    }
+                    .into())
                 } else {
                     Err(format!("Invalid Scout statement '{}' - expected format like 'Minion is 1 card away from closest Evil'", s))
                 }
@@ -971,17 +985,21 @@ impl fmt::Display for OracleStatement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScoutStatement {
-    pub role: Role,
+    pub role: Option<Role>,
     pub distance: usize,
 }
 
 impl fmt::Display for ScoutStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} is {} card(s) away from closest Evil",
-            self.role, self.distance
-        )
+        if let Some(role) = self.role {
+            write!(
+                f,
+                "{} is {} card(s) away from closest Evil",
+                role, self.distance
+            )
+        } else {
+            write!(f, "There is only 1 Evil")
+        }
     }
 }
 
@@ -1244,12 +1262,26 @@ pub fn can_produce_statement(
                 }
             }
             Role::Scout => {
-                if let RoleStatement::Scout(ScoutStatement { role, distance }) = statement {
-                    !true_roles.iter().enumerate().any(|(idx, r)| {
-                        r == role &&
-                        *distance == closest_evil_distance(true_roles, idx) &&
-                        true_roles[idx].alignment() == Alignment::Evil
-                    })
+                if let RoleStatement::Scout(ScoutStatement {
+                    role: role_option,
+                    distance,
+                }) = statement
+                {
+                    let evil_count = true_roles
+                        .iter()
+                        .filter(|r| r.alignment() == Alignment::Evil)
+                        .count();
+
+                    if let Some(role) = role_option {
+                        evil_count == 1
+                            || !true_roles.iter().enumerate().any(|(idx, r)| {
+                                r == role
+                                    && *distance == closest_evil_distance(true_roles, idx)
+                                    && true_roles[idx].alignment() == Alignment::Evil
+                            })
+                    } else {
+                        evil_count != 1
+                    }
                 } else {
                     false
                 }
@@ -1424,12 +1456,26 @@ pub fn can_produce_statement(
                 }
             }
             Role::Scout => {
-                if let RoleStatement::Scout(ScoutStatement { role, distance }) = statement {
-                    true_roles.iter().enumerate().any(|(idx, r)| {
-                        r == role &&
-                        *distance == closest_evil_distance(true_roles, idx) &&
-                        true_roles[idx].alignment() == Alignment::Evil
-                    })
+                if let RoleStatement::Scout(ScoutStatement {
+                    role: role_option,
+                    distance,
+                }) = statement
+                {
+                    let evil_count = true_roles
+                        .iter()
+                        .filter(|r| r.alignment() == Alignment::Evil)
+                        .count();
+
+                    if let Some(role) = role_option {
+                        evil_count != 1
+                            && true_roles.iter().enumerate().any(|(idx, r)| {
+                                r == role
+                                    && *distance == closest_evil_distance(true_roles, idx)
+                                    && true_roles[idx].alignment() == Alignment::Evil
+                            })
+                    } else {
+                        evil_count == 1
+                    }
                 } else {
                     false
                 }

@@ -628,7 +628,7 @@ fn test_scout() {
         RoleStatement::NoStatement,
         RoleStatement::NoStatement,
         ScoutStatement {
-            role: Witch,
+            role: Some(Witch),
             distance: 3,
         }
         .into(),
@@ -789,7 +789,7 @@ fn test_scout_2() {
         RoleStatement::NoStatement,
         ScoutStatement {
             distance: 2,
-            role: Witch,
+            role: Some(Witch),
         }
         .into(),
         ConfessorStatement::IAmDizzy.into(),
