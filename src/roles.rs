@@ -1,5 +1,6 @@
 use bitvec::prelude::*;
 use std::fmt;
+use std::str::FromStr;
 use strum_macros::{Display, EnumIter, EnumString};
 
 type TargetIndexes = BitArray<[u8; 2], Lsb0>;
@@ -8,6 +9,7 @@ type TargetIndexes = BitArray<[u8; 2], Lsb0>;
 #[strum(serialize_all = "lowercase")]
 pub enum Role {
     // Villager
+    #[strum(serialize = "bard", serialize = "athlete")]
     Bard,
     Confessor,
     Empress,
@@ -22,6 +24,7 @@ pub enum Role {
     #[strum(serialize = "medium", serialize = "lookout")]
     Medium,
     Scout,
+    #[strum(serialize = "slayer", serialize = "gambler")]
     Slayer,
     // Outcast
     Bombardier,
@@ -33,6 +36,7 @@ pub enum Role {
     TwinMinion,
     Witch,
     // Demon
+    #[strum(serialize = "baa", serialize = "imp")]
     Baa,
 }
 
@@ -233,7 +237,7 @@ impl Role {
                         s
                     ));
                 }
-                let role: Role = parts[0].trim().parse().map_err(|e| {
+                let role: Role = parts[0].trim().to_lowercase().parse().map_err(|e| {
                     format!("Invalid role '{}' in Scout statement: {}", parts[0], e)
                 })?;
                 let distance = parts[1].trim().parse().map_err(|_| {
@@ -295,6 +299,201 @@ impl Role {
             | Role::Witch
             | Role::Baa => Err(format!(
                 "No statement parsing implemented for {:?}",
+                self
+            )),
+        }
+    }
+    pub fn parse_natural_statement(&self, s: &str) -> Result<RoleStatement, String> {
+        match self {
+            Role::Bard => {
+                let s = s.to_lowercase();
+                if let Some(caps) =
+                    regex::Regex::new(r"i am (\d+) cards? away from (corrupted|evil)")
+                        .unwrap()
+                        .captures(&s)
+                {
+                    let distance = caps[1]
+                        .parse()
+                        .map_err(|_| format!("invalid distance in bard statement '{}'", s))?;
+                    Ok(BardStatement {
+                        distance: Some(distance),
+                    }
+                    .into())
+                } else if s.trim() == "none" {
+                    Ok(BardStatement { distance: None }.into())
+                } else {
+                    Err(format!("invalid bard statement '{}' - expected format like 'i am 2 cards away from corrupted' or 'none'", s))
+                }
+            }
+            Role::Confessor => {
+                let s = s.trim().to_lowercase();
+                match s.as_str() {
+                "i am dizzy" | "i'm dizzy" | "iamdizzy" => Ok(ConfessorStatement::IAmDizzy.into()),
+                "i am good" | "i'm good" | "iamgood" => Ok(ConfessorStatement::IAmGood.into()),
+                _ => Err(format!(
+                    "Invalid Confessor statement '{}' - expected something like 'I am dizzy' or 'I am good'",
+                    s
+                )),
+            }
+            }
+            Role::Medium => {
+                if let Some(caps) = regex::Regex::new(r"#(\d+)\s+is\s+a\s+real\s+(\w+)")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let target_index = caps[1]
+                        .parse::<usize>()
+                        .map_err(|_| format!("Invalid target index in Medium statement '{}'", s))?;
+                    let role = Role::from_str(&caps[2].to_lowercase())
+                        .map_err(|_| format!("Invalid role '{}' in Medium statement", &caps[2]))?;
+                    Ok(MediumStatement {
+                        target_index: target_index - 1,
+                        role,
+                    }
+                    .into())
+                } else {
+                    Err(format!("Invalid Medium statement '{}' - expected format like '#4 is a real Hunter'", s))
+                }
+            }
+            Role::Gemcrafter => {
+                if let Some(caps) = regex::Regex::new(r"#(\d+)\s+is\s+Good")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let target_index = caps[1].parse::<usize>().map_err(|_| {
+                        format!("Invalid target index in Gemcrafter statement '{}'", s)
+                    })?;
+                    Ok(GemcrafterStatement {
+                        target_index: target_index - 1,
+                    }
+                    .into())
+                } else {
+                    Err(format!(
+                        "Invalid Gemcrafter statement '{}' - expected format like '#5 is Good'",
+                        s
+                    ))
+                }
+            }
+            Role::Hunter => {
+                if let Some(caps) =
+                    regex::Regex::new(r"I am (\d+)\s*(?:cards?)?\s*away from closest Evil")
+                        .unwrap()
+                        .captures(s)
+                {
+                    let distance = caps[1]
+                        .parse()
+                        .map_err(|_| format!("Invalid distance in Hunter statement '{}'", s))?;
+                    Ok(HunterStatement { distance }.into())
+                } else {
+                    Err(format!("Invalid Hunter statement '{}' - expe|ted format like 'I am 2 cards away from closest Evil'", s))
+                }
+            }
+            Role::Enlightened => {
+                if let Some(caps) = regex::Regex::new(
+                    r"Closest Evil is:?\s*(Clockwise|Counter-clockwise|equidistant)",
+                )
+                .unwrap()
+                .captures(s)
+                {
+                    match &caps[1] {
+                        "Clockwise" => Ok(EnlightenedStatement::Clockwise.into()),
+                        "Counter-clockwise" => Ok(EnlightenedStatement::CounterClockwise.into()),
+                        "equidistant" => Ok(EnlightenedStatement::Equidistant.into()),
+                        _ => Err(format!("Invalid Enlightened statement '{}'", s)),
+                    }
+                } else {
+                    Err(format!("Invalid Enlightened statement '{}' - expected format like 'Closest Evil is: Clockwise'", s))
+                }
+            }
+            Role::Judge => {
+                if let Some(caps) = regex::Regex::new(r"#(\d+)\s+is\s+(truthful|lying)")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let target_index = caps[1]
+                        .parse::<usize>()
+                        .map_err(|_| format!("Invalid target index in Judge statement '{}'", s))?;
+                    let is_lying = match &caps[2] {
+                        "truthful" => false,
+                        "lying" => true,
+                        _ => return Err(format!("Invalid claim type in Judge statement '{}'", s)),
+                    };
+                    Ok(JudgeStatement {
+                        target_index: target_index - 1,
+                        is_lying,
+                    }
+                    .into())
+                } else {
+                    Err(format!("Invalid Judge statement '{}' - expected format like '#3 is truthful' or '#3 is lying'", s))
+                }
+            }
+            Role::Empress => {
+                if let Some(caps) =
+                    regex::Regex::new(r"One is Evil:\s*#(\d+)(?:\s*,\s*#(\d+))?(?:\s*or\s*#(\d+))?")
+                        .unwrap()
+                        .captures(s)
+                {
+                    let mut indexes = Vec::new();
+                    for i in 1..=3 {
+                        if let Some(m) = caps.get(i) {
+                            let idx = m.as_str().parse::<usize>().map_err(|_| {
+                                format!("Invalid index in Empress statement '{}'", s)
+                            })?;
+                            indexes.push(idx - 1);
+                        }
+                    }
+                    if indexes.is_empty() {
+                        return Err(format!(
+                            "No valid indexes found in Empress statement '{}'",
+                            s
+                        ));
+                    }
+                    let mut bits = TargetIndexes::default();
+                    for idx in indexes {
+                        bits.set(idx, true);
+                    }
+                    Ok(EmpressStatement {
+                        target_indexes: bits,
+                    }
+                    .into())
+                } else {
+                    Err(format!("Invalid Empress statement '{}' - expected format like 'One is Evil: #8, #1 or #7'", s))
+                }
+            }
+            Role::Lover => {
+                if s.trim().eq_ignore_ascii_case("NO Evils adjacent to me") {
+                    Ok(LoverStatement { evil_count: 0 }.into())
+                } else if let Some(caps) = regex::Regex::new(r"(\d+)\s*Evils?\s*adjacent to me")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let evil_count = caps[1]
+                        .parse()
+                        .map_err(|_| format!("Invalid evil count in Lover statement '{}'", s))?;
+                    Ok(LoverStatement { evil_count }.into())
+                } else {
+                    Err(format!("Invalid Lover statement '{}' - expected format like 'NO Evils adjacent to me' or '2 Evils adjacent to me'", s))
+                }
+            }
+            Role::Scout => {
+                if let Some(caps) =
+                    regex::Regex::new(r"(\w+)\s+is\s+(\d+)\s*cards?\s*away from closest Evil")
+                        .unwrap()
+                        .captures(s)
+                {
+                    let role = Role::from_str(&caps[1].to_lowercase())
+                        .map_err(|_| format!("Invalid role '{}' in Scout statement", &caps[1]))?;
+                    let distance = caps[2]
+                        .parse()
+                        .map_err(|_| format!("Invalid distance in Scout statement '{}'", s))?;
+                    Ok(ScoutStatement { role, distance }.into())
+                } else {
+                    Err(format!("Invalid Scout statement '{}' - expected format like 'Minion is 1 card away from closest Evil'", s))
+                }
+            }
+            Role::Knight => Err("Knight does not make statements in this game".to_string()),
+            _ => Err(format!(
+                "No natural statement parsing implemented for {:?}",
                 self
             )),
         }
@@ -459,7 +658,15 @@ pub struct EmpressStatement {
 
 impl fmt::Display for EmpressStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Among {:#?} there is 1 Evil", self.target_indexes)
+        write!(
+            f,
+            "Among {} there is 1 Evil",
+            self.target_indexes
+                .iter_ones()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 
@@ -472,7 +679,7 @@ pub enum EnlightenedStatement {
 
 impl fmt::Display for EnlightenedStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Closest Evil is {}", self)
+        write!(f, "Closest Evil is {:?}", self)
     }
 }
 
@@ -513,8 +720,13 @@ impl fmt::Display for JesterStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Among {:#?} there are {} Evil",
-            self.target_indexes, self.evil_count
+            "Among {} there are {} Evil",
+            self.target_indexes
+                .iter_ones()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.evil_count
         )
     }
 }

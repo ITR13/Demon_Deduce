@@ -4,11 +4,13 @@ version = "0.3.0"
 edition = "2021"
 
 [dependencies]
+arboard = "3.6.0"
 bitvec = "1.0.1"
 colored = "3.0.0"
 eframe = "0.31.1"
 egui = "0.31.1"
 inventory = "0.3.20"
 itertools = "0.10"
+regex = "1.11.1"
 strum = "0.27.2"
 strum_macros = "0.27.2"

@@ -12,6 +12,7 @@ pub fn brute_force_solve(
     outcasts: usize,
     minions: usize,
     demons: usize,
+    verbose: bool,
 ) -> Vec<Vec<Role>> {
     assert_eq!(
         visible_roles.len(),
@@ -108,6 +109,7 @@ pub fn brute_force_solve(
                                         full_wretch_assign,
                                         full_disguise_assign,
                                         observed_statements,
+                                        verbose
                                     );
                                     if success {
                                         valid.push(candidate.to_vec());
@@ -308,6 +310,7 @@ fn statements_match(
     wretch_assign: &[Role],
     disguise_assign: &[Role],
     observed_statements: &[RoleStatement],
+    verbose: bool,
 ) -> bool {
     // NB: This makes us lose corruption data! A proper solution would consider the corruptions separately
     let corrupt_permutations = execute_corruption(candidate, wretch_assign);
@@ -335,6 +338,26 @@ fn statements_match(
 
             // If not valid, reject candidate
             if !is_valid {
+                if verbose {
+                    let candidate_str = candidate
+                        .iter()
+                        .zip(corruption.iter())
+                        .map(|(role, corrupted)| {
+                            if *corrupted {
+                                format!("{}*", role)
+                            } else {
+                                role.to_string()
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+
+                    eprintln!("Invalid candidate: [{}]", candidate_str);
+                    eprintln!(
+                        "Statement {} didn't match for role {} (visible as {})",
+                        obs, true_role, vis_role
+                    );
+                }
                 continue 'corruption_loop;
             }
         }

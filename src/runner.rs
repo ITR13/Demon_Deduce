@@ -6,6 +6,162 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
+pub fn run_clipboard_loop() {
+    let clipboard = Arc::new(Mutex::new(
+        Clipboard::new().expect("Failed to initialize clipboard"),
+    ));
+
+    let mut last_content = String::new();
+
+    loop {
+        let current_content = {
+            let mut cb = clipboard.lock().unwrap();
+            cb.get_text().unwrap_or_default()
+        };
+
+        if current_content != last_content {
+            last_content = current_content.clone();
+            parse_clipboard(&current_content);
+        }
+
+        thread::sleep(Duration::from_millis(200));
+    }
+}
+
+pub fn run_from_clipboard() {
+    let clipboard = Arc::new(Mutex::new(
+        Clipboard::new().expect("Failed to initialize clipboard"),
+    ));
+
+    let current_content = {
+        let mut cb = clipboard.lock().unwrap();
+        cb.get_text().unwrap_or_default()
+    };
+    parse_clipboard(&current_content);
+}
+
+fn parse_clipboard(content: &str) {
+    let lines: Vec<&str> = content.lines().collect();
+    if lines.len() < 2 {
+        eprintln!("Clipboard content too short - expected at least 2 lines (deck and counts)");
+        return;
+    }
+
+    let deck = match parse_roles(lines[0]) {
+        Ok(deck) => deck,
+        Err(e) => {
+            eprintln!("Failed to parse deck '{}': {}", lines[0], e);
+            return;
+        }
+    };
+
+    let count_parts: Vec<&str> = lines[1].split_whitespace().collect();
+    if count_parts.len() != 4 {
+        eprintln!(
+            "Expected 4 counts on the second line (villagers outcasts minions demons), found {}: '{}'",
+            count_parts.len(),
+            lines[1]
+        );
+        return;
+    }
+
+    let villagers = parse_count(count_parts[0], "villagers", 1);
+    let outcasts = parse_count(count_parts[1], "outcasts", 1);
+    let minions = parse_count(count_parts[2], "minions", 1);
+    let demons = parse_count(count_parts[3], "demons", 1);
+    let num_seats = villagers + outcasts + minions + demons;
+
+    let mut visible = vec![None; num_seats];
+    let mut confirmed = vec![None; num_seats];
+    let mut observed = vec![RoleStatement::Unrevealed; num_seats];
+
+    let mut has_errors = false;
+
+    for line in &lines[2..] {
+        let parts: Vec<&str> = line.split('|').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+
+        let index = match parts[0].trim().parse::<usize>() {
+            Ok(idx) if idx > 0 && idx <= num_seats => idx - 1,
+            Ok(idx) => {
+                eprintln!(
+                    "Error: Index {} out of bounds (must be 1-{}) in line: {}",
+                    idx, num_seats, line
+                );
+                has_errors = true;
+                continue;
+            }
+            Err(e) => {
+                eprintln!(
+                    "Error: Invalid index '{}' in line: {} ({})",
+                    parts[0].trim(),
+                    line,
+                    e
+                );
+                has_errors = true;
+                continue;
+            }
+        };
+
+        let vis_role = match parse_role(parts[1]) {
+            Ok(role) => role,
+            Err(e) => {
+                eprintln!(
+                    "Error: Invalid visible role '{}' in line: {} ({})",
+                    parts[1], line, e
+                );
+                has_errors = true;
+                None
+            }
+        };
+        visible[index] = vis_role;
+
+        if parts.len() >= 3 {
+            match parse_role(parts[2]) {
+                Ok(role) => {
+                    confirmed[index] = role;
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Error: Invalid confirmed role '{}' in line: {} ({})",
+                        parts[2], line, e
+                    );
+                    has_errors = true;
+                }
+            }
+        }
+
+        if parts.len() >= 4 && parts[3] != "" {
+            if let Some(role) = vis_role {
+                match role.parse_natural_statement(parts[3]) {
+                    Ok(statement) => {
+                        observed[index] = statement;
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Error: Invalid statement '{}' for {:?} in line: {} ({})",
+                            parts[3], role, line, e
+                        );
+                        has_errors = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if has_errors {
+        eprintln!("\nErrors were encountered in input. Exiting.");
+        std::process::exit(1);
+    }
+
+    run_solver_and_print(
+        &deck, &visible, &confirmed, &observed, villagers, outcasts, minions, demons, true,
+    );
+}
+
 fn parse_count(s: &str, name: &str, line_num: usize) -> usize {
     s.parse().unwrap_or_else(|_| {
         eprintln!(
@@ -16,10 +172,14 @@ fn parse_count(s: &str, name: &str, line_num: usize) -> usize {
     })
 }
 
-fn parse_role(s: &str) -> Option<Role> {
-    match s.trim() {
-        "?" => None,
-        role_str => Role::from_str(role_str).ok(),
+fn parse_role(s: &str) -> Result<Option<Role>, String> {
+    let lower = s.trim().to_lowercase();
+    match lower.as_str() {
+        "?" => Ok(None),
+        "" => Ok(None),
+        role_str => Role::from_str(role_str)
+            .map(Some)
+            .map_err(|e| format!("Failed to parse role '{}': {}", lower, e)),
     }
 }
 
@@ -168,16 +328,15 @@ fn run_solver_and_print(
     if print_statements {
         println!("Deck: {:?}", deck);
         println!(
-            "Player counts - Villagers: {}, Outcasts: {}, Minions: {}, Demons: {}",
+            "Villagers: {}, Outcasts: {}, Minions: {}, Demons: {}",
             villagers, outcasts, minions, demons,
         );
-        println!("\nPlayer details:");
 
         for i in 0..visible.len() {
             let vis = match visible[i] {
                 Some(role) => {
                     let confirmed_part = match confirmed[i] {
-                        Some(c_role) if c_role != role => format!(" (confirmed: {:?})", c_role),
+                        Some(c_role) if c_role != role => format!(" ({:?})", c_role),
                         _ => String::new(),
                     };
                     format!("{:?}{}", role, confirmed_part)
@@ -185,16 +344,19 @@ fn run_solver_and_print(
                 None => "Unrevealed".to_string(),
             };
 
-            println!("Player {}: {} - {:?}", i, vis, observed[i]);
+            println!("Player {}: {} - {}", i, vis, observed[i]);
         }
     }
 
     let sols = brute_force_solve(
-        deck, visible, confirmed, observed, villagers, outcasts, minions, demons,
+        deck, visible, confirmed, observed, villagers, outcasts, minions, demons, false,
     );
 
     if sols.len() == 0 {
         println!("No solutions found.");
+        _ = brute_force_solve(
+            deck, visible, confirmed, observed, villagers, outcasts, minions, demons, true,
+        );
         return;
     }
 
