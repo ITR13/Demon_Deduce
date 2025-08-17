@@ -500,9 +500,42 @@ impl Role {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum RoleStatement {
-    NoStatement,
+macro_rules! role_statements {
+    (
+        $(
+            $role:ident($stmt:ident)
+        ),* $(,)?
+    ) => {
+        #[derive(Debug, Clone, PartialEq)]
+        pub enum RoleStatement {
+            NoStatement,
+            $(
+                $role($stmt),
+            )*
+        }
+
+        $(
+            impl From<$stmt> for RoleStatement {
+                fn from(statement: $stmt) -> Self {
+                    RoleStatement::$role(statement)
+                }
+            }
+        )*
+
+        impl fmt::Display for RoleStatement {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    RoleStatement::NoStatement => write!(f, "No Statement"),
+                    $(
+                        RoleStatement::$role(stmt) => stmt.fmt(f),
+                    )*
+                }
+            }
+        }
+    }
+}
+
+role_statements! {
     Bard(BardStatement),
     Confessor(ConfessorStatement),
     Empress(EmpressStatement),
@@ -516,105 +549,6 @@ pub enum RoleStatement {
     Scout(ScoutStatement),
     Slayer(SlayerStatement),
     PlagueDoctor(PlagueDoctorStatement),
-}
-
-impl From<BardStatement> for RoleStatement {
-    fn from(statement: BardStatement) -> Self {
-        RoleStatement::Bard(statement)
-    }
-}
-
-impl From<ConfessorStatement> for RoleStatement {
-    fn from(statement: ConfessorStatement) -> Self {
-        RoleStatement::Confessor(statement)
-    }
-}
-
-impl From<EmpressStatement> for RoleStatement {
-    fn from(statement: EmpressStatement) -> Self {
-        RoleStatement::Empress(statement)
-    }
-}
-
-impl From<EnlightenedStatement> for RoleStatement {
-    fn from(statement: EnlightenedStatement) -> Self {
-        RoleStatement::Enlightened(statement)
-    }
-}
-
-impl From<GemcrafterStatement> for RoleStatement {
-    fn from(statement: GemcrafterStatement) -> Self {
-        RoleStatement::Gemcrafter(statement)
-    }
-}
-
-impl From<HunterStatement> for RoleStatement {
-    fn from(statement: HunterStatement) -> Self {
-        RoleStatement::Hunter(statement)
-    }
-}
-
-impl From<JesterStatement> for RoleStatement {
-    fn from(statement: JesterStatement) -> Self {
-        RoleStatement::Jester(statement)
-    }
-}
-
-impl From<JudgeStatement> for RoleStatement {
-    fn from(statement: JudgeStatement) -> Self {
-        RoleStatement::Judge(statement)
-    }
-}
-
-impl From<LoverStatement> for RoleStatement {
-    fn from(statement: LoverStatement) -> Self {
-        RoleStatement::Lover(statement)
-    }
-}
-
-impl From<MediumStatement> for RoleStatement {
-    fn from(statement: MediumStatement) -> Self {
-        RoleStatement::Medium(statement)
-    }
-}
-
-impl From<ScoutStatement> for RoleStatement {
-    fn from(statement: ScoutStatement) -> Self {
-        RoleStatement::Scout(statement)
-    }
-}
-
-impl From<SlayerStatement> for RoleStatement {
-    fn from(statement: SlayerStatement) -> Self {
-        RoleStatement::Slayer(statement)
-    }
-}
-
-impl From<PlagueDoctorStatement> for RoleStatement {
-    fn from(statement: PlagueDoctorStatement) -> Self {
-        RoleStatement::PlagueDoctor(statement)
-    }
-}
-
-impl fmt::Display for RoleStatement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RoleStatement::NoStatement => write!(f, "No Statment"),
-            RoleStatement::Bard(stmt) => stmt.fmt(f),
-            RoleStatement::Confessor(stmt) => stmt.fmt(f),
-            RoleStatement::Empress(stmt) => stmt.fmt(f),
-            RoleStatement::Enlightened(stmt) => stmt.fmt(f),
-            RoleStatement::Gemcrafter(stmt) => stmt.fmt(f),
-            RoleStatement::Hunter(stmt) => stmt.fmt(f),
-            RoleStatement::Jester(stmt) => stmt.fmt(f),
-            RoleStatement::Judge(stmt) => stmt.fmt(f),
-            RoleStatement::Lover(stmt) => stmt.fmt(f),
-            RoleStatement::Medium(stmt) => stmt.fmt(f),
-            RoleStatement::Scout(stmt) => stmt.fmt(f),
-            RoleStatement::Slayer(stmt) => stmt.fmt(f),
-            RoleStatement::PlagueDoctor(stmt) => stmt.fmt(f),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
