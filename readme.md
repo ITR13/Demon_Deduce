@@ -60,6 +60,7 @@ The format for this is:
 
 ### Outcasts:
 - ✅ Bombardier
+- ✅ Doppelganger
 - ✅ PlagueDoctor
 - ✅ Wretch
 - ❌ Drunk
@@ -69,8 +70,7 @@ The format for this is:
 - ✅ Poisoner
 - ✅ TwinMinion
 - ✅ Witch
-- ❌ Counsellor
-- ❌ Doppelganger
+- ✅ Counsellor
 - ❌ Puppeteer/Puppet
 - ❌ Shaman
 
@@ -81,10 +81,7 @@ The format for this is:
 
 ## How It Works
 
-The solver:
-1. Travels through each valid combination of starting cards that produce the visible cards
-2. For each combination, check if the visible statements are valid
-3. Creates a list of valid combinations and what roles each position can have
+It brute forces every possible starting combination and random effects, then matches that against the visible cards & statements to find out which ones are possible.
 
 ## Output
 
