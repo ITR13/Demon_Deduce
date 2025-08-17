@@ -983,8 +983,7 @@ pub fn can_produce_statement(
                     is_lying: stmt_lying,
                 }) = statement
                 {
-                    *target_index < true_roles.len()
-                        && *stmt_lying == true_roles[*target_index].lying()
+                    *stmt_lying != (true_roles[*target_index].lying() || corruptions[*target_index])
                 } else {
                     false
                 }
@@ -1148,8 +1147,7 @@ pub fn can_produce_statement(
                     is_lying: stmt_lying,
                 }) = statement
                 {
-                    *target_index < true_roles.len()
-                        && *stmt_lying == true_roles[*target_index].lying()
+                    *stmt_lying == (true_roles[*target_index].lying() || corruptions[*target_index])
                 } else {
                     false
                 }
