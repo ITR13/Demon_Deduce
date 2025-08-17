@@ -5,33 +5,30 @@ This project is an automatic solver for the social deduction game [**Demon Bluff
 ## Command Line Usage
 
 ```bash
-cargo run -- <deck> <villagers> <minions> <demons> <outcasts> <card1_info> <card2_info> ...
+cargo run -- <deck> <villagers> <outcasts> <minions> <demons> <card1_info> <card2_info> ...
 ```
 
 ### Arguments
 
-- `<deck>`: Comma-separated list of roles in the game
+- `<deck>`: Comma-separated list of roles in the deck
 - `<villagers>`: Number of villagers in play
+- `<outcasts>`: Number of outcasts in play
 - `<minions>`: Number of minions in play
 - `<demons>`: Number of demons in play
-- `<outcasts>`: Number of outcasts in play
 - `<cardN_info>`: Information for each card in format `visible:confirmed:statement`:
   - `visible`: The role shown face-up (or "?" if unknown)
   - `confirmed`: The confirmed true role (or "?" if unknown)
-  - `statement`: The statement made by the card (or "unrevealed"/"?")
+  - `statement`: The statement made by the card (or blank if unknown/no statement)
 
 **Note:** All card positions are 0-indexed (one less than in-game position numbers)
 
-### Statement Syntax
+### Alternative Usage
 
-Statements can be any of:
-- `unrevealed` or `?` - No statement made
-- `clockwise`/`counterclockwise`/`equidistant` - Enlightened statements
-- `iamgood`/`iamdizzy` - Confessor statements
-- `claim[target;type]` - For Gemcrafter/Judge/Slayer (type: good/evil/truthy/lying)
-- `evilcount[targets;count;minimum;none_closer]` - For Empress/Hunter/Jester/Lover
-- `roleclaim[target;role]` - For Medium
-- `roledistance[role;distance]` - For Scout
+If you have `-c` or `-l` anywhere in the arguments, it will try to parse a different format from the clipboard instead. -c does it once, -l does it in loop every time it changes.
+The format for this is:
+- One line with a comma-separated list of the roles in the deck
+- One line with 4 ints representing the villager, outcast, minion, and demon counts
+- N lines in the following format: `[index]|[visible-role]|[confirmed-role]|[statement]`. Where N <= the amount of cards in play
 
 ## Implemented Roles
 
