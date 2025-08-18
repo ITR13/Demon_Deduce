@@ -340,16 +340,17 @@ impl Role {
                 }.into())
             }
             Role::PlagueDoctor => {
-                let target_indexes: Vec<_> = parse_indexes(s)?.iter_ones().collect();
-
+                let target_indexes: Vec<usize> = s.split(';').map(|sv| sv.parse().map_err(|_| {
+                    format!("Invalid target index in PlagueDoctor statement")
+                })).collect::<Result<Vec<_>, _>>()?;
                 match target_indexes.len() {
                     1 => Ok(PlagueDoctorStatement {
                         corruption_index: target_indexes[0],
                         evil_index: None,
                     }.into()),
                     2 => Ok(PlagueDoctorStatement {
-                        corruption_index: target_indexes[0],
-                        evil_index: Some(target_indexes[1]),
+                        corruption_index: target_indexes[1],
+                        evil_index: Some(target_indexes[0]),
                     }.into()),
                     _ => Err(format!(
                         "PlagueDoctor must have 1 or 2 target indexes, got {} in '{}'",
@@ -603,26 +604,38 @@ impl Role {
                     .unwrap()
                     .captures(&s)
                 {
-                    let corruption_index: usize = caps[1]
-                        .parse()
-                        .map_err(|_| format!("invalid index in plague doctor statement '{}'", s))?;
-                    let corruption_index = corruption_index - 1;
+                    let (corruption_index, evil_index) = match caps.get(2) {
+                        Some(_) => {
+                            // If there's a second part, then:
+                            // - corruption_index is the second part
+                            // - evil_index is the first part
+                            let corruption_index: usize = caps[2].parse().map_err(|_| {
+                                format!("invalid second index in plague doctor statement '{}'", s)
+                            })?;
+                            let corruption_index = corruption_index - 1;
 
-                    let evil_index = caps
-                        .get(2)
-                        .map(|m| {
-                            m.as_str()
+                            let evil_index: usize = caps[1]
                                 .parse::<usize>()
                                 .map_err(|_| {
                                     format!(
-                                        "invalid second index in plague doctor statement '{}'",
+                                        "invalid first index in plague doctor statement '{}'",
                                         s
                                     )
                                 })
-                                .map(|x| x - 1)
-                        })
-                        .transpose()?;
+                                .map(|x| x - 1)?;
 
+                            (corruption_index, Some(evil_index))
+                        }
+                        None => {
+                            // If there's only one part, it's corruption_index and evil_index is None
+                            let corruption_index: usize = caps[1].parse().map_err(|_| {
+                                format!("invalid index in plague doctor statement '{}'", s)
+                            })?;
+                            let corruption_index = corruption_index - 1;
+
+                            (corruption_index, None)
+                        }
+                    };
                     Ok(PlagueDoctorStatement {
                         corruption_index,
                         evil_index,
@@ -1029,8 +1042,8 @@ impl fmt::Display for PlagueDoctorStatement {
             None => write!(f, "{} is not corrupt", self.corruption_index),
             Some(evil_idx) => write!(
                 f,
-                "{} is corrupt. {} is evil",
-                self.corruption_index, evil_idx
+                "{} is evil. {} is corrupt",
+                evil_idx, self.corruption_index,
             ),
         }
     }
