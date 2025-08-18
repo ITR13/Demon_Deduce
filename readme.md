@@ -49,12 +49,12 @@ The format for this is:
 - ✅ Knitter
 - ✅ Lover
 - ✅ Medium
+- ✅ Oracle
 - ✅ Scout
 - ✅ Slayer
 - ❌ Baker
 - ❌ Bishop
 - ❌ Dreamer
-- ❌ Oracle
 - ❌ Poet
 - ❌ Witness
 
@@ -76,7 +76,7 @@ The format for this is:
 
 ### Demons:
 - ✅ Baa
-- ❌ Pooka
+- ✅ Pooka
 - ❌ Lilis
 
 ## How It Works
