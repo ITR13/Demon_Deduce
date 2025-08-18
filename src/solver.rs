@@ -40,74 +40,76 @@ pub fn brute_force_solve(
         .collect();
 
     // Try every possible combination of villagers, minions, and outcasts
-    villager_combos.par_iter().flat_map(|v_combo| {
-        let deck_villager_not_in_play: Vec<Role> = deck
-            .iter()
-            .copied()
-            .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
-            .collect();
-
-        let mut local_valid = Vec::new();
-        let mut perm_current: Vec<Role> = Vec::with_capacity(n);
-        let mut wretch_assign: Vec<Role> = Vec::with_capacity(n);
-        let mut disguise_assign: Vec<Role> = Vec::with_capacity(n);
-
-        for o_combo in &outcast_combos {
-            let outcasts_not_in_play: Vec<Role> = deck
+    villager_combos
+        .par_iter()
+        .flat_map(|v_combo| {
+            let deck_villager_not_in_play: Vec<Role> = deck
                 .iter()
                 .copied()
-                .filter(|r| r.group() == Group::Outcast && !o_combo.contains(r))
+                .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
                 .collect();
-            for m_combo in &minion_combos {
-                let has_counsellor = m_combo.iter().any(|&r| r == Role::Counsellor);
-                for d_combo in &demon_combos {
-                    let combined_variations = generate_role_variations(
-                        v_combo,
-                        o_combo,
-                        m_combo,
-                        d_combo,
-                        &outcasts_not_in_play,
-                        has_counsellor,
-                    );
 
-                    for combined in combined_variations {
-                        let deck_villagers_in_play: Vec<_> = combined
-                            .iter()
-                            .copied()
-                            .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
-                            .collect();
+            let mut local_valid = Vec::new();
+            let mut perm_current: Vec<Role> = Vec::with_capacity(n);
+            let mut wretch_assign: Vec<Role> = Vec::with_capacity(n);
+            let mut disguise_assign: Vec<Role> = Vec::with_capacity(n);
 
-                        // Prepare role counts for multiset permutation generation
-                        let mut counts: HashMap<Role, usize> = HashMap::new();
-                        for &r in &combined {
-                            *counts.entry(r).or_insert(0) += 1;
-                        }
-
-                        let keys: Vec<Role> = counts.keys().copied().collect();
-
-                        // Generate all seat permutations of this role multiset
-                        permute_multiset(
-                            &mut counts,
-                            &keys,
-                            &mut perm_current,
-                            n,
+            for o_combo in &outcast_combos {
+                let outcasts_not_in_play: Vec<Role> = deck
+                    .iter()
+                    .copied()
+                    .filter(|r| r.group() == Group::Outcast && !o_combo.contains(r))
+                    .collect();
+                for m_combo in &minion_combos {
+                    let has_counsellor = m_combo.iter().any(|&r| r == Role::Counsellor);
+                    for d_combo in &demon_combos {
+                        let combined_variations = generate_role_variations(
+                            v_combo,
+                            o_combo,
+                            m_combo,
+                            d_combo,
+                            &outcasts_not_in_play,
                             has_counsellor,
-                            &mut |candidate: &[Role]| {
-                                // Immediately discard if known confirmed roles don’t match
-                                if !confirmed_roles_ok(candidate, confirmed_roles) {
-                                    return;
-                                }
+                        );
 
-                                // Build possible Wretch replacements and minion disguises for each seat
-                                let (wretch_choices, disguise_choices) = build_choices(
-                                    candidate,
-                                    &deck_minions,
-                                    &deck_non_evil,
-                                    &deck_villagers_in_play,
-                                    &deck_villager_not_in_play,
-                                );
-                                // DFS through every possible Wretch assignment + disguise mapping
-                                assign_disguises_and_check(
+                        for combined in combined_variations {
+                            let villagers_in_play: Vec<_> = combined
+                                .iter()
+                                .copied()
+                                .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
+                                .collect();
+
+                            // Prepare role counts for multiset permutation generation
+                            let mut counts: HashMap<Role, usize> = HashMap::new();
+                            for &r in &combined {
+                                *counts.entry(r).or_insert(0) += 1;
+                            }
+
+                            let keys: Vec<Role> = counts.keys().copied().collect();
+
+                            // Generate all seat permutations of this role multiset
+                            permute_multiset(
+                                &mut counts,
+                                &keys,
+                                &mut perm_current,
+                                n,
+                                has_counsellor,
+                                &mut |candidate: &[Role]| {
+                                    // Immediately discard if known confirmed roles don’t match
+                                    if !confirmed_roles_ok(candidate, confirmed_roles) {
+                                        return;
+                                    }
+
+                                    // Build possible Wretch replacements and minion disguises for each seat
+                                    let (wretch_choices, disguise_choices) = build_choices(
+                                        candidate,
+                                        &deck_minions,
+                                        &deck_non_evil,
+                                        &villagers_in_play,
+                                        &deck_villager_not_in_play,
+                                    );
+                                    // DFS through every possible Wretch assignment + disguise mapping
+                                    assign_disguises_and_check(
                                 candidate,
                                 &wretch_choices,
                                 &disguise_choices,
@@ -130,15 +132,225 @@ pub fn brute_force_solve(
                                     success
                                 },
                             );
-                            },
-                        );
+                                },
+                            );
+                        }
                     }
                 }
             }
-        }
 
-        local_valid
-    }).collect()
+            local_valid
+        })
+        .collect()
+}
+
+pub fn validate_candidate(
+    candidate: &[Role],
+    deck: &[Role],
+    visible_roles: &[Option<Role>],
+    confirmed_roles: &[Option<Role>],
+    observed_statements: &[RoleStatement],
+) -> Result<(), Vec<String>> {
+    let mut rejection_reasons = Vec::new();
+    let n = candidate.len();
+
+    if !confirmed_roles_ok(candidate, confirmed_roles) {
+        rejection_reasons.push("Candidate doesn't match confirmed roles".to_string());
+        return Err(rejection_reasons);
+    }
+
+    let deck_minions: Vec<Role> = deck
+        .iter()
+        .copied()
+        .filter(|r| r.group() == Group::Minion)
+        .collect();
+
+    let deck_non_evil: Vec<Role> = deck
+        .iter()
+        .copied()
+        .filter(|r| r.alignment() != Alignment::Evil)
+        .collect();
+
+    let villagers_in_play: Vec<_> = candidate
+        .iter()
+        .copied()
+        .filter(|r| r.group() == Group::Villager)
+        .collect();
+
+    let deck_villagers_not_in_play: Vec<Role> = deck
+        .iter()
+        .copied()
+        .filter(|r| r.group() == Group::Villager && !villagers_in_play.contains(r))
+        .collect();
+
+    let (wretch_choices, disguise_choices) = build_choices(
+        candidate,
+        &deck_minions,
+        &deck_non_evil,
+        &villagers_in_play,
+        &deck_villagers_not_in_play,
+    );
+
+    for (i, (visible_role, disguises)) in visible_roles
+        .iter()
+        .zip(disguise_choices.iter())
+        .enumerate()
+    {
+        let Some(role) = visible_role else { continue };
+        if disguises.contains(role) {
+            continue;
+        };
+
+        let valid_disguises = disguises
+            .iter()
+            .map(|r| r.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        rejection_reasons.push(format!(
+            "Visible role '{}' at index {} is not one of the valid disguises: [{}]",
+            role, i, valid_disguises
+        ));
+    }
+    if rejection_reasons.len() > 0 {
+        return Err(rejection_reasons);
+    }
+
+    let mut found_valid = false;
+    let mut wretch_assign = Vec::with_capacity(n);
+    let mut disguise_assign = Vec::with_capacity(n);
+
+    assign_disguises_and_check(
+        candidate,
+        &wretch_choices,
+        &disguise_choices,
+        visible_roles,
+        &mut wretch_assign,
+        &mut disguise_assign,
+        0,
+        &mut |full_wretch_assign, full_disguise_assign| {
+            match check_statements(
+                candidate,
+                full_wretch_assign,
+                full_disguise_assign,
+                observed_statements,
+            ) {
+                Ok(_) => {
+                    found_valid = true;
+                    true // Stop searching if we find a valid configuration
+                }
+                Err(reasons) => {
+                    rejection_reasons.extend(reasons);
+                    false // Continue searching
+                }
+            }
+        },
+    );
+
+    if found_valid {
+        Ok(())
+    } else {
+        rejection_reasons.dedup(); // Remove duplicate reasons
+        Err(rejection_reasons)
+    }
+}
+
+fn check_statements(
+    candidate: &[Role],
+    wretch_assign: &[Role],
+    disguise_assign: &[Role],
+    observed_statements: &[RoleStatement],
+) -> Result<(), Vec<String>> {
+    let mut rejection_reasons = Vec::new();
+    let corrupt_permutations = execute_corruption(candidate, wretch_assign);
+
+    'corruption_loop: for pre_corruption in corrupt_permutations {
+        let (corruption, uncorruptions) =
+            execute_uncorruption(candidate, disguise_assign, &pre_corruption);
+
+        for (idx, (&true_role, &vis_role, is_corrupt)) in
+            izip!(candidate.iter(), disguise_assign.iter(), corruption.iter()).enumerate()
+        {
+            let obs = &observed_statements[idx];
+            if *obs == RoleStatement::NoStatement {
+                continue;
+            }
+
+            let lying = true_role.lying() || *is_corrupt;
+
+            let is_valid = can_produce_statement(
+                vis_role,
+                lying,
+                wretch_assign,
+                disguise_assign,
+                corruption.as_slice(),
+                uncorruptions.as_slice(),
+                idx,
+                obs,
+            );
+
+            if !is_valid {
+                let candidate_str = candidate
+                    .iter()
+                    .zip(corruption.iter())
+                    .map(|(role, corrupted)| {
+                        if *corrupted {
+                            format!("{}*", role)
+                        } else {
+                            role.to_string()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                rejection_reasons.push(format!(
+                    "Seat {}: Role {} (visible as {}) cannot produce statement {} for placement {}",
+                    idx, true_role, vis_role, obs, candidate_str
+                ));
+                continue 'corruption_loop;
+            }
+        }
+        // All statements matched for this corruption permutation
+        return Ok(());
+    }
+
+    Err(rejection_reasons)
+}
+
+fn build_choices(
+    candidate: &[Role],
+    deck_minions: &[Role],
+    deck_non_evil: &[Role],
+    villagers_in_play: &[Role],
+    deck_villager_not_in_play: &[Role],
+) -> (Vec<Vec<Role>>, Vec<Vec<Role>>) {
+    let mut wretch_choices = Vec::with_capacity(candidate.len());
+    let mut disguise_choices = Vec::with_capacity(candidate.len());
+
+    for &r in candidate {
+        // Wretch choices
+        wretch_choices.push(if r == Role::Wretch {
+            // Wretch's "true role" is always some minion
+            deck_minions.to_vec()
+        } else {
+            vec![r]
+        });
+
+        // Disguise choices
+        let group = r.group();
+        let choices = if group == Group::Demon {
+            deck_villager_not_in_play.to_vec()
+        } else if group == Group::Minion {
+            deck_non_evil.to_vec()
+        } else if r == Role::DoppelGanger {
+            villagers_in_play.to_vec()
+        } else {
+            vec![r]
+        };
+
+        disguise_choices.push(choices);
+    }
+
+    (wretch_choices, disguise_choices)
 }
 
 fn generate_role_variations(
@@ -183,43 +395,6 @@ fn generate_role_variations(
     }
 
     combinations
-}
-
-fn build_choices(
-    candidate: &[Role],
-    deck_minions: &[Role],
-    deck_non_evil: &[Role],
-    deck_villagers_in_play: &[Role],
-    deck_villager_not_in_play: &[Role],
-) -> (Vec<Vec<Role>>, Vec<Vec<Role>>) {
-    let mut wretch_choices = Vec::with_capacity(candidate.len());
-    let mut disguise_choices = Vec::with_capacity(candidate.len());
-
-    for &r in candidate {
-        // Wretch choices
-        wretch_choices.push(if r == Role::Wretch {
-            // Wretch's "true role" is always some minion
-            deck_minions.to_vec()
-        } else {
-            vec![r]
-        });
-
-        // Disguise choices
-        let group = r.group();
-        let choices = if group == Group::Demon {
-            deck_villager_not_in_play.to_vec()
-        } else if group == Group::Minion {
-            deck_non_evil.to_vec()
-        } else if r == Role::DoppelGanger {
-            deck_villagers_in_play.to_vec()
-        } else {
-            vec![r]
-        };
-
-        disguise_choices.push(choices);
-    }
-
-    (wretch_choices, disguise_choices)
 }
 
 fn generate_role_combinations(
@@ -461,7 +636,11 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
     let mut poison_options: Vec<Vec<usize>> = Vec::new();
 
     // Sort by role priority
-    let mut roles_with_indices: Vec<(usize, Role)> = true_roles.iter().enumerate().map(|(i, &r)| (i, r)).collect();
+    let mut roles_with_indices: Vec<(usize, Role)> = true_roles
+        .iter()
+        .enumerate()
+        .map(|(i, &r)| (i, r))
+        .collect();
     roles_with_indices.sort_by(|a, b| {
         let priority = |role: Role| match role {
             Role::Pooka => 0,
@@ -469,7 +648,9 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
             Role::PlagueDoctor => 2,
             _ => 3,
         };
-        priority(a.1).cmp(&priority(b.1)).then_with(|| a.0.cmp(&b.0))
+        priority(a.1)
+            .cmp(&priority(b.1))
+            .then_with(|| a.0.cmp(&b.0))
     });
 
     // Collect lists of lists to permute over

@@ -4,4 +4,4 @@ pub mod solver;
 
 pub use roles::{Role, RoleStatement};
 pub use runner::{run_args, run_clipboard_loop, run_from_clipboard};
-pub use solver::brute_force_solve;
+pub use solver::{brute_force_solve, validate_candidate};

@@ -1,5 +1,6 @@
 use crate::brute_force_solve;
 use crate::roles::*;
+use crate::validate_candidate;
 use arboard::Clipboard;
 use colored::*;
 use std::str::FromStr;
@@ -73,7 +74,7 @@ fn parse_clipboard(content: &str) {
     let num_seats = villagers + outcasts + minions + demons;
 
     let mut visible = vec![None; num_seats];
-    let mut confirmed = vec![None; num_seats];
+    let mut confirmed: Vec<Option<Role>> = vec![None; num_seats];
     let mut observed = vec![RoleStatement::NoStatement; num_seats];
 
     let mut has_errors = false;
@@ -184,8 +185,29 @@ fn parse_role(s: &str) -> Result<Option<Role>, String> {
 }
 
 pub fn run_args(args: Vec<String>) {
+    let (validate_mode, candidate, filtered_args) =
+        if let Some(validate_pos) = args.iter().position(|x| x == "--validate") {
+            if validate_pos + 1 >= args.len() {
+                eprintln!("Error: --validate requires a candidate argument");
+                std::process::exit(1);
+            }
+
+            let candidate_str = &args[validate_pos + 1];
+            let candidate = parse_roles(candidate_str).unwrap_or_else(|e| {
+                eprintln!("Failed to parse candidate roles: {}", e);
+                std::process::exit(1);
+            });
+
+            let mut filtered_args = args.clone();
+            filtered_args.drain(validate_pos..=validate_pos + 1);
+
+            (true, Some(candidate), filtered_args)
+        } else {
+            (false, None, args)
+        };
+
     let (deck, visible, confirmed, observed, villagers, outcasts, minions, demons) =
-        match parse_input(&args) {
+        match parse_input(&filtered_args) {
             Ok(parsed) => parsed,
             Err(e) => {
                 println!("{}", e);
@@ -193,10 +215,31 @@ pub fn run_args(args: Vec<String>) {
             }
         };
 
-    run_solver_and_print(
-        &deck, &visible, &confirmed, &observed, villagers, outcasts, minions, demons, false,
-    );
+    if validate_mode {
+        match candidate {
+            Some(candidate) => {
+                match validate_candidate(&candidate, &deck, &visible, &confirmed, &observed) {
+                    Ok(_) => println!("{}", "Candidate is valid!".green()),
+                    Err(reasons) => {
+                        println!("{}", "Candidate is invalid:".red());
+                        for reason in reasons {
+                            println!("- {}", reason);
+                        }
+                    }
+                }
+            }
+            None => {
+                eprintln!("Error: No candidate provided for validation");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        run_solver_and_print(
+            &deck, &visible, &confirmed, &observed, villagers, outcasts, minions, demons, false,
+        );
+    }
 }
+
 fn parse_input(
     args: &[String],
 ) -> Result<
@@ -264,12 +307,12 @@ fn parse_input(
         let role = if parts[0].eq_ignore_ascii_case("?") {
             None
         } else {
-            Some(Role::from_str(parts[0]).map_err(|e| {
+            parse_role(parts[0]).map_err(|e| {
                 format!(
                     "Invalid visible role '{}' in argument {} ('{}'): {}",
                     parts[0], position, card_arg, e
                 )
-            })?)
+            })?
         };
         visible.push(role);
 
@@ -277,12 +320,12 @@ fn parse_input(
         confirmed.push(if parts.len() <= 1 || parts[1].eq_ignore_ascii_case("?") {
             None
         } else {
-            Some(Role::from_str(parts[1]).map_err(|e| {
+            parse_role(parts[1]).map_err(|e| {
                 format!(
                     "Invalid confirmed role '{}' in argument {} ('{}'): {}",
                     parts[1], position, card_arg, e
                 )
-            })?)
+            })?
         });
 
         // Parse statement
