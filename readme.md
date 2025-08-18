@@ -36,6 +36,7 @@ The format for this is:
 - ✅ Alchemist
 - ✅ Bard
 - ✅ Confessor
+- ✅ Druid
 - ✅ Empress
 - ✅ Enlightened
 - ✅ Fortune Teller
@@ -53,7 +54,6 @@ The format for this is:
 - ❌ Baker
 - ❌ Bishop
 - ❌ Dreamer
-- ❌ Druid
 - ❌ Oracle
 - ❌ Poet
 - ❌ Witness

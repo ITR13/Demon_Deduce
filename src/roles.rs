@@ -13,6 +13,7 @@ pub enum Role {
     #[strum(serialize = "bard", serialize = "athlete")]
     Bard,
     Confessor,
+    Druid,
     Empress,
     Enlightened,
     #[strum(
@@ -39,6 +40,11 @@ pub enum Role {
     Bombardier,
     #[strum(serialize = "doppelganger", serialize = "doppleganger")]
     DoppelGanger,
+    #[strum(
+        serialize = "plaguedoctor",
+        serialize = "plague doctor",
+        serialize = "plague"
+    )]
     PlagueDoctor,
     Wretch,
     // Minion
@@ -89,9 +95,9 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
-            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
-            | Slayer => Group::Villager,
+            Alchemist | Bard | Confessor | Druid | Empress | Enlightened | FortuneTeller
+            | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle
+            | Scout | Slayer => Group::Villager,
             Bombardier | DoppelGanger | PlagueDoctor | Wretch => Group::Outcast,
             Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa | Pooka => Group::Demon,
@@ -100,18 +106,18 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
-            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
-            | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => Alignment::Good,
+            Alchemist | Bard | Confessor | Druid | Empress | Enlightened | FortuneTeller
+            | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle
+            | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => Alignment::Good,
             Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
-            | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
-            | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => false,
+            Alchemist | Bard | Confessor | Druid | Empress | Enlightened | FortuneTeller
+            | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle
+            | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => false,
             Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => true,
         }
     }
@@ -160,6 +166,23 @@ impl Role {
                     s
                 )),
             },
+            Role::Druid => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    return Err(format!(
+                        "Invalid Druid statement '{}' - expected format 'target_indexes;role'",
+                        s
+                    ));
+                }
+                let target_indexes = parse_indexes(parts[0])?;
+                let role: Role = parts[1].trim().to_lowercase().parse().map_err(|e| {
+                    format!(
+                        "Invalid target role '{}' in Druid statement: {}",
+                        parts[1], e
+                    )
+                })?;
+                Ok(DruidStatement { target_indexes, role: Some(role) }.into())
+            }
             Role::Empress => {
                 let target_indexes = parse_indexes(s)?;
                 Ok(EmpressStatement { target_indexes }.into())
@@ -725,6 +748,61 @@ impl Role {
                     Err(format!("Invalid Oracle statement '{}'", s))
                 }
             }
+            Role::Druid => {
+                if let Some(caps) =
+                    regex::Regex::new(r"Among #(\d+), #(\d+), #(\d+) there is: (\w+)")
+                        .unwrap()
+                        .captures(s)
+                {
+                    let mut indexes = Vec::new();
+                    for i in 1..=3 {
+                        if let Some(m) = caps.get(i) {
+                            let idx: usize = m
+                                .as_str()
+                                .parse()
+                                .map_err(|_| format!("Invalid index in Druid statement '{}'", s))?;
+                            indexes.push(idx - 1);
+                        }
+                    }
+                    let target_indexes = to_bitvec(indexes);
+                    let role: Role = caps[4].trim().to_lowercase().parse().map_err(|e| {
+                        format!(
+                            "Invalid target role '{}' in Druid statement: {}",
+                            &caps[4], e
+                        )
+                    })?;
+
+                    Ok(DruidStatement {
+                        target_indexes,
+                        role: Some(role),
+                    }
+                    .into())
+                } else if let Some(caps) =
+                    regex::Regex::new(r"Among #(\d+), #(\d+), #(\d+) there are NO Outcasts")
+                        .unwrap()
+                        .captures(s)
+                {
+                    let mut indexes = Vec::new();
+                    for i in 1..=3 {
+                        if let Some(m) = caps.get(i) {
+                            let idx: usize = m
+                                .as_str()
+                                .parse()
+                                .map_err(|_| format!("Invalid index in Druid statement '{}'", s))?;
+                            indexes.push(idx - 1);
+                        }
+                    }
+                    let target_indexes = to_bitvec(indexes);
+
+                    Ok(DruidStatement {
+                        target_indexes,
+                        role: None,
+                    }
+                    .into())
+                } else {
+                    Err(format!("Invalid Druid statement '{}'", s))
+                }
+            }
             _ => Err(format!(
                 "No natural statement parsing implemented for {:?}",
                 self
@@ -772,6 +850,7 @@ role_statements! {
     Alchemist(AlchemistStatement),
     Bard(BardStatement),
     Confessor(ConfessorStatement),
+    Druid(DruidStatement),
     Empress(EmpressStatement),
     Enlightened(EnlightenedStatement),
     FortuneTeller(FortuneTellerStatement),
@@ -829,6 +908,39 @@ impl fmt::Display for ConfessorStatement {
         match self {
             ConfessorStatement::IAmGood => write!(f, "I am Good"),
             ConfessorStatement::IAmDizzy => write!(f, "I am Dizzy"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DruidStatement {
+    pub target_indexes: TargetIndexes,
+    pub role: Option<Role>,
+}
+
+impl fmt::Display for DruidStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(role) = self.role {
+            write!(
+                f,
+                "Among {} there is a {}",
+                self.target_indexes
+                    .iter_ones()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                role
+            )
+        } else {
+            write!(
+                f,
+                "Among {} there are NO Outcasts",
+                self.target_indexes
+                    .iter_ones()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
         }
     }
 }
@@ -1162,6 +1274,25 @@ pub fn can_produce_statement(
                 }
             }
             Role::Confessor => *statement == RoleStatement::Confessor(ConfessorStatement::IAmDizzy),
+            Role::Druid => {
+                if let RoleStatement::Druid(DruidStatement {
+                    target_indexes,
+                    role: role_option,
+                }) = statement
+                {
+                    if let Some(role) = role_option {
+                        target_indexes
+                            .iter_ones()
+                            .all(|idx| true_roles[idx] != *role)
+                    } else {
+                        target_indexes
+                            .iter_ones()
+                            .any(|idx| true_roles[idx].group() == Group::Outcast)
+                    }
+                } else {
+                    false
+                }
+            }
             Role::Empress => {
                 if let RoleStatement::Empress(EmpressStatement { target_indexes }) = statement {
                     target_indexes
@@ -1356,6 +1487,25 @@ pub fn can_produce_statement(
                 }
             }
             Role::Confessor => *statement == RoleStatement::Confessor(ConfessorStatement::IAmGood),
+            Role::Druid => {
+                if let RoleStatement::Druid(DruidStatement {
+                    target_indexes,
+                    role: role_option,
+                }) = statement
+                {
+                    if let Some(role) = role_option {
+                        target_indexes
+                            .iter_ones()
+                            .any(|idx| true_roles[idx] == *role)
+                    } else {
+                        !target_indexes
+                            .iter_ones()
+                            .any(|idx| true_roles[idx].group() == Group::Outcast)
+                    }
+                } else {
+                    false
+                }
+            }
             Role::Enlightened => {
                 *statement
                     == RoleStatement::Enlightened(closest_evil_direction(true_roles, position))
