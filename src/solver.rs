@@ -460,25 +460,54 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
     let len = true_roles.len();
     let mut poison_options: Vec<Vec<usize>> = Vec::new();
 
-    // Step 1: Collect eligible targets for each role
-    for (i, &role) in true_roles.iter().enumerate() {
+    // Sort by role priority
+    let mut roles_with_indices: Vec<(usize, Role)> = true_roles.iter().enumerate().map(|(i, &r)| (i, r)).collect();
+    roles_with_indices.sort_by(|a, b| {
+        let priority = |role: Role| match role {
+            Role::Pooka => 0,
+            Role::Poisoner => 1,
+            Role::PlagueDoctor => 2,
+            _ => 3,
+        };
+        priority(a.1).cmp(&priority(b.1)).then_with(|| a.0.cmp(&b.0))
+    });
+
+    // Collect lists of lists to permute over
+    for (i, role) in roles_with_indices {
         match role {
-            Role::PlagueDoctor => {
-                let eligible: Vec<usize> = wretch_assign
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, &role)| role.group() == Group::Villager)
-                    .map(|(index, _)| index)
-                    .collect();
-                poison_options.push(eligible);
+            Role::Pooka => {
+                // All neighbouring villagers
+                let neighbors = neighbor_indexes(len, i, 1);
+                for n in neighbors {
+                    if wretch_assign[n].group() == Group::Villager {
+                        poison_options.push(vec![n]); // We pretend it's actually two separate roles making choices
+                    }
+                }
             }
             Role::Poisoner => {
+                // One neighbouring villager
                 let neighbors = neighbor_indexes(len, i, 1);
                 let eligible: Vec<usize> = neighbors
                     .into_iter()
                     .filter(|&n| wretch_assign[n].group() == Group::Villager)
                     .collect();
-                poison_options.push(eligible);
+
+                if !eligible.is_empty() {
+                    poison_options.push(eligible);
+                }
+            }
+            Role::PlagueDoctor => {
+                // Any random villager
+                let eligible: Vec<usize> = wretch_assign
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, &r)| r.group() == Group::Villager)
+                    .map(|(index, _)| index)
+                    .collect();
+
+                if !eligible.is_empty() {
+                    poison_options.push(eligible);
+                }
             }
             _ => {}
         }
@@ -494,10 +523,18 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
             result.push(current.clone());
             return;
         }
+
+        let mut any_valid = false;
         for &target in &poison_options[idx] {
-            let mut next = current.clone();
-            next[target] = true;
-            combine(poison_options, idx + 1, &mut next, result);
+            if !current[target] {
+                let mut next = current.clone();
+                next[target] = true;
+                combine(poison_options, idx + 1, &mut next, result);
+                any_valid = true;
+            }
+        }
+        if !any_valid {
+            combine(poison_options, idx + 1, current, result);
         }
     }
 

@@ -56,6 +56,7 @@ pub enum Role {
     // Demon
     #[strum(serialize = "baa", serialize = "imp")]
     Baa,
+    Pooka,
 }
 
 impl Ord for Role {
@@ -93,7 +94,7 @@ impl Role {
             | Slayer => Group::Villager,
             Bombardier | DoppelGanger | PlagueDoctor | Wretch => Group::Outcast,
             Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
-            Baa => Group::Demon,
+            Baa | Pooka => Group::Demon,
         }
     }
     pub const fn alignment(self) -> Alignment {
@@ -102,7 +103,7 @@ impl Role {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
             | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
             | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => Alignment::Good,
-            Baa | Counsellor | Minion | Poisoner | TwinMinion | Witch => Alignment::Evil,
+            Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
@@ -111,7 +112,7 @@ impl Role {
             Alchemist | Bard | Confessor | Empress | Enlightened | FortuneTeller | Gemcrafter
             | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle | Scout
             | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => false,
-            Baa | Minion | Poisoner | TwinMinion | Witch | Counsellor => true,
+            Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => true,
         }
     }
     pub fn parse_statement(&self, s: &str) -> Result<RoleStatement, String> {
@@ -366,6 +367,7 @@ impl Role {
             | Role::TwinMinion
             | Role::Witch
             | Role::Baa
+            | Role::Pooka
             | Role::Counsellor => Err(format!(
                 "No statement parsing implemented for {:?}",
                 self
