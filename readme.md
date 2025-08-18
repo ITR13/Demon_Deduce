@@ -34,6 +34,7 @@ The format for this is:
 
 ### Villagers:
 - ✅ Alchemist
+- ✅ Architect
 - ✅ Bard
 - ✅ Confessor
 - ✅ Druid
@@ -50,7 +51,6 @@ The format for this is:
 - ✅ Medium
 - ✅ Scout
 - ✅ Slayer
-- ❌ Architect
 - ❌ Baker
 - ❌ Bishop
 - ❌ Dreamer

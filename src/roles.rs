@@ -10,6 +10,7 @@ type TargetIndexes = BitArray<[u8; 2], Lsb0>;
 pub enum Role {
     // Villager
     Alchemist,
+    Architect,
     #[strum(serialize = "bard", serialize = "athlete")]
     Bard,
     Confessor,
@@ -95,9 +96,9 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Druid | Empress | Enlightened | FortuneTeller
-            | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle
-            | Scout | Slayer => Group::Villager,
+            Alchemist | Architect | Bard | Confessor | Druid | Empress | Enlightened
+            | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
+            | Medium | Oracle | Scout | Slayer => Group::Villager,
             Bombardier | DoppelGanger | PlagueDoctor | Wretch => Group::Outcast,
             Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa | Pooka => Group::Demon,
@@ -106,18 +107,20 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Druid | Empress | Enlightened | FortuneTeller
-            | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle
-            | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => Alignment::Good,
+            Alchemist | Architect | Bard | Confessor | Druid | Empress | Enlightened
+            | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
+            | Medium | Oracle | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
+            | Wretch => Alignment::Good,
             Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Alchemist | Bard | Confessor | Druid | Empress | Enlightened | FortuneTeller
-            | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover | Medium | Oracle
-            | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor | Wretch => false,
+            Alchemist | Architect | Bard | Confessor | Druid | Empress | Enlightened
+            | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
+            | Medium | Oracle | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
+            | Wretch => false,
             Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => true,
         }
     }
@@ -147,6 +150,15 @@ impl Role {
                     format!("Invalid corrupt count '{}' for Alchemist", s)
                 })?;
                 Ok(AlchemistStatement { corrupt_count }.into())
+            }
+            Role::Architect => match s.trim() {
+                "right" => Ok(ArchitectStatement::Right.into()),
+                "left" => Ok(ArchitectStatement::Left.into()),
+                "equal" => Ok(ArchitectStatement::Equal.into()),
+                _ => Err(format!(
+                    "Invalid Architect statement '{}' - expected 'left', 'right', or 'equal'",
+                    s
+                )),
             }
             Role::Bard => {
                 let distance = if s.trim() == "none" {
@@ -411,6 +423,25 @@ impl Role {
                     Ok(AlchemistStatement { corrupt_count }.into())
                 } else {
                     Err(format!("Invalid Alchemist statement '{}'", s))
+                }
+            }
+            Role::Architect => {
+                let s = s.to_lowercase();
+                if let Some(caps) = regex::Regex::new(r"(left|right|equal)")
+                    .unwrap()
+                    .captures(&s)
+                {
+                    match caps[1].trim() {
+                        "right" => Ok(ArchitectStatement::Right.into()),
+                        "left" => Ok(ArchitectStatement::Left.into()),
+                        "equal" => Ok(ArchitectStatement::Equal.into()),
+                        _ => Err(format!(
+                            "Invalid Architect statement '{}' - expected 'left', 'right', or 'equal'",
+                            s
+                        )),
+                    }
+                } else {
+                    Err(format!("invalid bard statement '{}'", s))
                 }
             }
             Role::Bard => {
@@ -848,6 +879,7 @@ macro_rules! role_statements {
 
 role_statements! {
     Alchemist(AlchemistStatement),
+    Architect(ArchitectStatement),
     Bard(BardStatement),
     Confessor(ConfessorStatement),
     Druid(DruidStatement),
@@ -875,6 +907,23 @@ pub struct AlchemistStatement {
 impl fmt::Display for AlchemistStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "I cured {} corruptions", self.corrupt_count)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ArchitectStatement {
+    Right,
+    Left,
+    Equal,
+}
+
+impl fmt::Display for ArchitectStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ArchitectStatement::Right => write!(f, "Right side is more Evil"),
+            ArchitectStatement::Left => write!(f, "Left side is more Evil"),
+            ArchitectStatement::Equal => write!(f, "Both sides are Equally evil"),
+        }
     }
 }
 
@@ -1235,6 +1284,31 @@ pub fn count_evil_pairs(true_roles: &[Role]) -> usize {
         .count()
 }
 
+fn count_side_evils(true_roles: &[Role]) -> ArchitectStatement {
+    let len = true_roles.len();
+    let half = len / 2;
+
+    let second_half_start = if len % 2 == 0 { half } else { half + 1 };
+
+    let right_evil_count = true_roles[..half]
+        .iter()
+        .filter(|r| r.alignment() == Alignment::Evil)
+        .count();
+
+    let left_evil_count = true_roles[second_half_start..len - 1]
+        .iter()
+        .filter(|r| r.alignment() == Alignment::Evil)
+        .count();
+
+    if left_evil_count > right_evil_count {
+        ArchitectStatement::Left
+    } else if left_evil_count < right_evil_count {
+        ArchitectStatement::Right
+    } else {
+        ArchitectStatement::Equal
+    }
+}
+
 /// Check if a card can produce a specific statement given:
 /// - `visible_role`: what role is shown (may be a disguise)
 /// - `is_lying`: if the character should lie
@@ -1260,6 +1334,7 @@ pub fn can_produce_statement(
                     false
                 }
             }
+            Role::Architect => *statement != RoleStatement::Architect(count_side_evils(true_roles)),
             Role::Bard => {
                 let closest_distance = closest_corrupt_distance(corruptions, position);
                 if let RoleStatement::Bard(BardStatement { distance }) = statement {
@@ -1478,6 +1553,7 @@ pub fn can_produce_statement(
                     false
                 }
             }
+            Role::Architect => *statement == RoleStatement::Architect(count_side_evils(true_roles)),
             Role::Bard => {
                 let closest_distance = closest_corrupt_distance(corruptions, position);
                 if let RoleStatement::Bard(BardStatement { distance }) = statement {

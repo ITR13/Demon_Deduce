@@ -615,9 +615,9 @@ fn statements_match(
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    eprintln!("Invalid candidate: [{}]", candidate_str);
                     eprintln!(
-                        "Statement {} didn't match for role {} (visible as {})",
+                        "Invalid candidate: [{}]\nStatement {} didn't match for role {} (visible as {})",
+                        candidate_str,
                         obs, true_role, vis_role
                     );
                 }
