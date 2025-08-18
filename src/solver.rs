@@ -337,7 +337,7 @@ fn build_choices(
 
         // Disguise choices
         let group = r.group();
-        let choices = if group == Group::Demon {
+        let choices = if group == Group::Demon || r == Role::Drunk {
             deck_villager_not_in_play.to_vec()
         } else if group == Group::Minion {
             deck_non_evil.to_vec()
@@ -643,9 +643,10 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
         .collect();
     roles_with_indices.sort_by(|a, b| {
         let priority = |role: Role| match role {
-            Role::Pooka => 0,
-            Role::Poisoner => 1,
-            Role::PlagueDoctor => 2,
+            Role::Drunk => 0,
+            Role::Pooka => 1,
+            Role::Poisoner => 2,
+            Role::PlagueDoctor => 3,
             _ => 3,
         };
         priority(a.1)
@@ -656,6 +657,10 @@ fn execute_corruption(true_roles: &[Role], wretch_assign: &[Role]) -> Vec<Vec<bo
     // Collect lists of lists to permute over
     for (i, role) in roles_with_indices {
         match role {
+            Role::Drunk => {
+                // Targets self
+                poison_options.push(vec![i]);
+            }
             Role::Pooka => {
                 // All neighbouring villagers
                 let neighbors = neighbor_indexes(len, i, 1);
@@ -740,7 +745,7 @@ fn execute_uncorruption(
 
             for &offset in &[1, 2] {
                 for &neighbor in &neighbor_indexes(len, i, offset) {
-                    if mut_corruption[neighbor] {
+                    if mut_corruption[neighbor] && true_roles[neighbor] != Role::Drunk {
                         mut_corruption[neighbor] = false;
                         cleared += 1;
                     }

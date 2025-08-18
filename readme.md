@@ -61,9 +61,9 @@ The format for this is:
 ### Outcasts:
 - ✅ Bombardier
 - ✅ Doppelganger
+- ✅ Drunk
 - ✅ PlagueDoctor
 - ✅ Wretch
-- ❌ Drunk
 
 ### Minions:
 - ✅ Minion

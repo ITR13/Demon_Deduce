@@ -41,6 +41,7 @@ pub enum Role {
     Bombardier,
     #[strum(serialize = "doppelganger", serialize = "doppleganger")]
     DoppelGanger,
+    Drunk,
     #[strum(
         serialize = "plaguedoctor",
         serialize = "plague doctor",
@@ -99,7 +100,7 @@ impl Role {
             Alchemist | Architect | Bard | Confessor | Druid | Empress | Enlightened
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
             | Medium | Oracle | Scout | Slayer => Group::Villager,
-            Bombardier | DoppelGanger | PlagueDoctor | Wretch => Group::Outcast,
+            Bombardier | DoppelGanger | PlagueDoctor | Wretch | Drunk => Group::Outcast,
             Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa | Pooka => Group::Demon,
         }
@@ -107,7 +108,7 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Alchemist | Architect | Bard | Confessor | Druid | Empress | Enlightened
+            Alchemist | Architect | Bard | Confessor | Druid | Drunk | Empress | Enlightened
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
             | Medium | Oracle | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
             | Wretch => Alignment::Good,
@@ -121,7 +122,7 @@ impl Role {
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
             | Medium | Oracle | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
             | Wretch => false,
-            Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => true,
+            Baa | Counsellor | Drunk | Minion | Poisoner | Pooka | TwinMinion | Witch => true,
         }
     }
     pub fn parse_statement(&self, s: &str) -> Result<RoleStatement, String> {
@@ -397,6 +398,7 @@ impl Role {
             Role::Knight
             | Role::Bombardier
             | Role::DoppelGanger
+            | Role::Drunk
             | Role::Wretch
             | Role::Minion
             | Role::Poisoner
