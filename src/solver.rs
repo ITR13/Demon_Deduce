@@ -25,18 +25,18 @@ pub fn brute_force_solve(
     let (villager_combos, outcast_combos, minion_combos, demon_combos) =
         generate_role_combinations(deck, villagers, outcasts, minions, demons);
 
-    // Wretch needs to be replaced with any minion from the deck — precompute choices
+    // Wretch needs to be replaced with any minion from the deck
     let deck_minions: Vec<Role> = deck
         .iter()
         .copied()
         .filter(|r| r.group() == Group::Minion)
         .collect();
 
-    // Disguised minions can appear as any non-evil role — precompute choices
+    // Disguised minions can appear as any non-evil role (and also not wretch)
     let deck_non_evil: Vec<Role> = deck
         .iter()
         .copied()
-        .filter(|r| r.alignment() != Alignment::Evil)
+        .filter(|r| r.alignment() != Alignment::Evil && *r != Role::Wretch)
         .collect();
 
     // Try every possible combination of villagers, minions, and outcasts
@@ -168,7 +168,7 @@ pub fn validate_candidate(
     let deck_non_evil: Vec<Role> = deck
         .iter()
         .copied()
-        .filter(|r| r.alignment() != Alignment::Evil)
+        .filter(|r| r.alignment() != Alignment::Evil && *r != Role::Wretch)
         .collect();
 
     let villagers_in_play: Vec<_> = candidate
