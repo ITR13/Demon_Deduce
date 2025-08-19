@@ -656,7 +656,7 @@ impl Role {
             }
             Role::PlagueDoctor => {
                 let s = s.to_lowercase();
-                if let Some(caps) = regex::Regex::new(r"#(\d+).*(?:#(\d+))?")
+                if let Some(caps) = regex::Regex::new(r"#(\d+)[^#]+(?:#(\d+))?")
                     .unwrap()
                     .captures(&s)
                 {
