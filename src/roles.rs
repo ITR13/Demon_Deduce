@@ -724,7 +724,7 @@ impl Role {
                 }
             }
             Role::Jester => {
-                if let Some(caps) = regex::Regex::new(r"#(\d+).*#(\d+).*#(\d+).*(\d+) Evils")
+                if let Some(caps) = regex::Regex::new(r"#(\d+).*#(\d+).*#(\d+).*(\d+) Evils?")
                     .unwrap()
                     .captures(s)
                 {
