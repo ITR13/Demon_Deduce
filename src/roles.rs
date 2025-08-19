@@ -1434,7 +1434,7 @@ pub fn can_produce_statement(
                     is_lying: stmt_lying,
                 }) = statement
                 {
-                    *stmt_lying != (true_roles[*target_index].lying() || corruptions[*target_index])
+                    *stmt_lying != ((true_roles[*target_index].lying() || corruptions[*target_index]) && disguised_roles[*target_index] != Role::Confessor)
                 } else {
                     false
                 }
@@ -1649,7 +1649,7 @@ pub fn can_produce_statement(
                     is_lying: stmt_lying,
                 }) = statement
                 {
-                    *stmt_lying == (true_roles[*target_index].lying() || corruptions[*target_index])
+                    *stmt_lying == ((true_roles[*target_index].lying() || corruptions[*target_index]) && disguised_roles[*target_index] != Role::Confessor)
                 } else {
                     false
                 }
