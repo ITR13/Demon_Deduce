@@ -836,6 +836,37 @@ impl Role {
                     Err(format!("Invalid Druid statement '{}'", s))
                 }
             }
+            Role::Slayer => {
+                if let Some(caps) =
+                    regex::Regex::new(r"I killed Evil.*#(\d+)")
+                        .unwrap()
+                        .captures(s)
+                {
+                    let target_index: usize = caps[1]
+                        .parse()
+                        .map_err(|_| format!("Invalid index in Slauer statement '{}'", s))?;
+                    Ok(SlayerStatement {
+                        target_index,
+                        alignment: Alignment::Evil,
+                    }
+                    .into())
+                } else if let Some(caps) =
+                    regex::Regex::new(r"I couldn't kill.*#(\d+)")
+                        .unwrap()
+                        .captures(s)
+                {
+                    let target_index: usize = caps[1]
+                        .parse()
+                        .map_err(|_| format!("Invalid index in Slauer statement '{}'", s))?;
+                    Ok(SlayerStatement {
+                        target_index,
+                        alignment: Alignment::Good,
+                    }
+                    .into())
+                } else {
+                    Err(format!("Invalid Slayer statement '{}'", s))
+                }
+            }
             _ => Err(format!(
                 "No natural statement parsing implemented for {:?}",
                 self
