@@ -11,6 +11,7 @@ pub enum Role {
     // Villager
     Alchemist,
     Architect,
+    Baker,
     #[strum(serialize = "bard", serialize = "athlete")]
     Bard,
     Confessor,
@@ -97,7 +98,7 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Alchemist | Architect | Bard | Confessor | Druid | Empress | Enlightened
+            Alchemist | Architect | Baker | Bard | Confessor | Druid | Empress | Enlightened
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
             | Medium | Oracle | Scout | Slayer => Group::Villager,
             Bombardier | DoppelGanger | PlagueDoctor | Wretch | Drunk => Group::Outcast,
@@ -108,7 +109,7 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Alchemist | Architect | Bard | Confessor | Druid | Drunk | Empress | Enlightened
+            Alchemist | Architect | Baker | Bard | Confessor | Druid | Drunk | Empress | Enlightened
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
             | Medium | Oracle | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
             | Wretch => Alignment::Good,
@@ -118,7 +119,7 @@ impl Role {
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Alchemist | Architect | Bard | Confessor | Druid | Empress | Enlightened
+            Alchemist | Architect | Baker | Bard | Confessor | Druid | Empress | Enlightened
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
             | Medium | Oracle | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
             | Wretch => false,
@@ -395,16 +396,17 @@ impl Role {
                     )),
                 }
             }
-            Role::Knight
+            Role::Baker
             | Role::Bombardier
+            | Role::Knight
             | Role::DoppelGanger
             | Role::Drunk
             | Role::Wretch
+            | Role::Baa
             | Role::Minion
             | Role::Poisoner
             | Role::TwinMinion
             | Role::Witch
-            | Role::Baa
             | Role::Pooka
             | Role::Counsellor => Err(format!(
                 "No statement parsing implemented for {:?}",
@@ -446,6 +448,7 @@ impl Role {
                     Err(format!("invalid bard statement '{}'", s))
                 }
             }
+            Role::Baker => Ok(RoleStatement::NoStatement),
             Role::Bard => {
                 let s = s.to_lowercase();
                 if let Some(caps) = regex::Regex::new(r"i am (\d+) cards?")

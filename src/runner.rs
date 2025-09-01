@@ -178,6 +178,7 @@ fn parse_role(s: &str) -> Result<Option<Role>, String> {
     match lower.as_str() {
         "?" => Ok(None),
         "" => Ok(None),
+        "baker" => Ok(None),
         role_str => Role::from_str(role_str)
             .map(Some)
             .map_err(|e| format!("Failed to parse role '{}': {}", lower, e)),
