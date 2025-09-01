@@ -423,7 +423,7 @@ fn run_solver_and_print(
             .into_iter()
             .map(|role| color_by_group(role))
             .collect();
-        println!("{}: {}", i+1, line.join(", "));
+        println!("{}: {}", i + 1, line.join(", "));
     }
 }
 

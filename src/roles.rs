@@ -15,6 +15,7 @@ pub enum Role {
     #[strum(serialize = "bard", serialize = "athlete")]
     Bard,
     Confessor,
+    Dreamer,
     Druid,
     Empress,
     Enlightened,
@@ -100,9 +101,9 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Alchemist | Architect | Baker | Bard | Confessor | Druid | Empress | Enlightened
-            | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
-            | Medium | Oracle | Poet | Scout | Slayer => Group::Villager,
+            Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Empress
+            | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight
+            | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer => Group::Villager,
             Bombardier | DoppelGanger | PlagueDoctor | Wretch | Drunk => Group::Outcast,
             Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa | Pooka => Group::Demon,
@@ -111,20 +112,20 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Alchemist | Architect | Baker | Bard | Confessor | Druid | Drunk | Empress | Enlightened
-            | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
-            | Medium | Oracle | Poet | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
-            | Wretch => Alignment::Good,
+            Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Drunk
+            | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
+            | Knight | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Bombardier
+            | DoppelGanger | PlagueDoctor | Wretch => Alignment::Good,
             Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Alchemist | Architect | Baker | Bard | Confessor | Druid | Empress | Enlightened
-            | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
-            | Medium | Oracle | Poet | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
-            | Wretch => false,
+            Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Empress
+            | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight
+            | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Bombardier
+            | DoppelGanger | PlagueDoctor | Wretch => false,
             Baa | Counsellor | Drunk | Minion | Poisoner | Pooka | TwinMinion | Witch => true,
         }
     }
@@ -182,6 +183,25 @@ impl Role {
                     s
                 )),
             },
+            Role::Dreamer => {
+                let parts: Vec<&str> = s.split(';').collect();
+                if parts.len() != 2 {
+                    return Err(format!(
+                        "Invalid Dreamer statement '{}' - expected format 'target_indexes;role'",
+                        s
+                    ));
+                }
+                let target_index = s.trim().parse().map_err(|_| {
+                    format!("Invalid target index '{}' for Dreamer", s)
+                })?;
+                let role: Role = parts[1].trim().to_lowercase().parse().map_err(|e| {
+                    format!(
+                        "Invalid target role '{}' in Dreamer statement: {}",
+                        parts[1], e
+                    )
+                })?;
+                Ok(DreamerStatement { target_index, role }.into())
+            }
             Role::Druid => {
                 let parts: Vec<&str> = s.split(';').collect();
                 if parts.len() != 2 {
@@ -843,10 +863,9 @@ impl Role {
                 }
             }
             Role::Slayer => {
-                if let Some(caps) =
-                    regex::Regex::new(r"I killed Evil.*#(\d+)")
-                        .unwrap()
-                        .captures(s)
+                if let Some(caps) = regex::Regex::new(r"I killed Evil.*#(\d+)")
+                    .unwrap()
+                    .captures(s)
                 {
                     let target_index: usize = caps[1]
                         .parse()
@@ -856,14 +875,13 @@ impl Role {
                         alignment: Alignment::Evil,
                     }
                     .into())
-                } else if let Some(caps) =
-                    regex::Regex::new(r"I couldn't kill.*#(\d+)")
-                        .unwrap()
-                        .captures(s)
+                } else if let Some(caps) = regex::Regex::new(r"I couldn't kill.*#(\d+)")
+                    .unwrap()
+                    .captures(s)
                 {
                     let target_index: usize = caps[1]
                         .parse()
-                        .map_err(|_| format!("Invalid index in Slauer statement '{}'", s))?;
+                        .map_err(|_| format!("Invalid index in Slayer statement '{}'", s))?;
                     Ok(SlayerStatement {
                         target_index,
                         alignment: Alignment::Good,
@@ -871,6 +889,26 @@ impl Role {
                     .into())
                 } else {
                     Err(format!("Invalid Slayer statement '{}'", s))
+                }
+            }
+            Role::Dreamer => {
+                if let Some(caps) = regex::Regex::new(r"#(\d+) could be: (\w+)")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let target_index: usize = caps[1]
+                        .parse()
+                        .map_err(|_| format!("Invalid index in Dreamer statement '{}'", s))?;
+                    let role: Role = caps[2].trim().to_lowercase().parse().map_err(|e| {
+                        format!(
+                            "Invalid target role '{}' in Dreamer statement: {}",
+                            &caps[2], e
+                        )
+                    })?;
+
+                    Ok(DreamerStatement { target_index: target_index - 1, role }.into())
+                } else {
+                    Err(format!("Invalid Oracle statement '{}'", s))
                 }
             }
             Role::Poet => Ok(RoleStatement::NoStatement),
@@ -923,6 +961,7 @@ role_statements! {
     Bard(BardStatement),
     Confessor(ConfessorStatement),
     Druid(DruidStatement),
+    Dreamer(DreamerStatement),
     Empress(EmpressStatement),
     Enlightened(EnlightenedStatement),
     FortuneTeller(FortuneTellerStatement),
@@ -998,6 +1037,18 @@ impl fmt::Display for ConfessorStatement {
             ConfessorStatement::IAmGood => write!(f, "I am Good"),
             ConfessorStatement::IAmDizzy => write!(f, "I am Dizzy"),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DreamerStatement {
+    pub target_index: usize,
+    pub role: Role,
+}
+
+impl fmt::Display for DreamerStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} could be {}", self.target_index, self.role)
     }
 }
 
@@ -1389,6 +1440,14 @@ pub fn can_produce_statement(
                 }
             }
             Role::Confessor => *statement == RoleStatement::Confessor(ConfessorStatement::IAmDizzy),
+            Role::Dreamer => {
+                if let RoleStatement::Dreamer(DreamerStatement { target_index, role }) = statement {
+                    let found_role = true_roles[*target_index];
+                    found_role.alignment() != Alignment::Evil || found_role != *role
+                } else {
+                    false
+                }
+            }
             Role::Druid => {
                 if let RoleStatement::Druid(DruidStatement {
                     target_indexes,
@@ -1472,7 +1531,9 @@ pub fn can_produce_statement(
                     is_lying: stmt_lying,
                 }) = statement
                 {
-                    *stmt_lying != ((true_roles[*target_index].lying() || corruptions[*target_index]) && disguised_roles[*target_index] != Role::Confessor)
+                    *stmt_lying
+                        != ((true_roles[*target_index].lying() || corruptions[*target_index])
+                            && disguised_roles[*target_index] != Role::Confessor)
                 } else {
                     false
                 }
@@ -1640,6 +1701,14 @@ pub fn can_produce_statement(
                     false
                 }
             }
+            Role::Dreamer => {
+                if let RoleStatement::Dreamer(DreamerStatement { target_index, role }) = statement {
+                    let found_role = true_roles[*target_index];
+                    found_role.alignment() != Alignment::Evil || found_role == *role
+                } else {
+                    false
+                }
+            }
             Role::FortuneTeller => {
                 if let RoleStatement::FortuneTeller(FortuneTellerStatement {
                     target_indexes,
@@ -1687,7 +1756,9 @@ pub fn can_produce_statement(
                     is_lying: stmt_lying,
                 }) = statement
                 {
-                    *stmt_lying == ((true_roles[*target_index].lying() || corruptions[*target_index]) && disguised_roles[*target_index] != Role::Confessor)
+                    *stmt_lying
+                        == ((true_roles[*target_index].lying() || corruptions[*target_index])
+                            && disguised_roles[*target_index] != Role::Confessor)
                 } else {
                     false
                 }

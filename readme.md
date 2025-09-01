@@ -38,6 +38,7 @@ The format for this is:
 - 🟡 Baker
 - ✅ Bard
 - ✅ Confessor
+- ✅ Dreamer
 - ✅ Druid
 - ✅ Empress
 - ✅ Enlightened
@@ -55,7 +56,6 @@ The format for this is:
 - ✅ Scout
 - ✅ Slayer
 - ❌ Bishop
-- ❌ Dreamer
 - ❌ Witness
 
 ### Outcasts:
