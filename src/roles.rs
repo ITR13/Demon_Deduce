@@ -35,6 +35,8 @@ pub enum Role {
     #[strum(serialize = "medium", serialize = "lookout")]
     Medium,
     Oracle,
+    #[strum(serialize = "poet", serialize = "gossip")]
+    Poet,
     Scout,
     #[strum(serialize = "slayer", serialize = "gambler")]
     Slayer,
@@ -100,7 +102,7 @@ impl Role {
         match self {
             Alchemist | Architect | Baker | Bard | Confessor | Druid | Empress | Enlightened
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
-            | Medium | Oracle | Scout | Slayer => Group::Villager,
+            | Medium | Oracle | Poet | Scout | Slayer => Group::Villager,
             Bombardier | DoppelGanger | PlagueDoctor | Wretch | Drunk => Group::Outcast,
             Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
             Baa | Pooka => Group::Demon,
@@ -111,7 +113,7 @@ impl Role {
         match self {
             Alchemist | Architect | Baker | Bard | Confessor | Druid | Drunk | Empress | Enlightened
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
-            | Medium | Oracle | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
+            | Medium | Oracle | Poet | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
             | Wretch => Alignment::Good,
             Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => Alignment::Evil,
         }
@@ -121,7 +123,7 @@ impl Role {
         match self {
             Alchemist | Architect | Baker | Bard | Confessor | Druid | Empress | Enlightened
             | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight | Knitter | Lover
-            | Medium | Oracle | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
+            | Medium | Oracle | Poet | Scout | Slayer | Bombardier | DoppelGanger | PlagueDoctor
             | Wretch => false,
             Baa | Counsellor | Drunk | Minion | Poisoner | Pooka | TwinMinion | Witch => true,
         }
@@ -330,6 +332,7 @@ impl Role {
                 })?;
                 Ok(OracleStatement { target_indexes, role }.into())
             }
+            Role::Poet => Ok(RoleStatement::NoStatement),
             Role::Scout => {
                 if s.to_lowercase() == "none" {
                     return Ok(ScoutStatement {role: None, distance:0}.into());
@@ -870,6 +873,7 @@ impl Role {
                     Err(format!("Invalid Slayer statement '{}'", s))
                 }
             }
+            Role::Poet => Ok(RoleStatement::NoStatement),
             _ => Err(format!(
                 "No natural statement parsing implemented for {:?}",
                 self

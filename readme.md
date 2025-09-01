@@ -51,11 +51,11 @@ The format for this is:
 - ✅ Lover
 - ✅ Medium
 - ✅ Oracle
+- 🟡 Poet
 - ✅ Scout
 - ✅ Slayer
 - ❌ Bishop
 - ❌ Dreamer
-- ❌ Poet
 - ❌ Witness
 
 ### Outcasts:
