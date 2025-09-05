@@ -55,8 +55,8 @@ The format for this is:
 - 🟡 Poet
 - ✅ Scout
 - ✅ Slayer
+- 🟡 Witness
 - ❌ Bishop
-- ❌ Witness
 
 ### Outcasts:
 - ✅ Bombardier

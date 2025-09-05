@@ -41,6 +41,7 @@ pub enum Role {
     Scout,
     #[strum(serialize = "slayer", serialize = "gambler")]
     Slayer,
+    Witness,
     // Outcast
     Bombardier,
     #[strum(serialize = "doppelganger", serialize = "doppleganger")]
@@ -109,7 +110,9 @@ impl Role {
         match self {
             Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Empress
             | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight
-            | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer => Group::Villager,
+            | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Witness => {
+                Group::Villager
+            }
             Bombardier | DoppelGanger | PlagueDoctor | Wretch | Drunk => Group::Outcast,
             Counsellor | Minion | Poisoner | Puppet | Puppeteer | TwinMinion | Witch => {
                 Group::Minion
@@ -123,7 +126,7 @@ impl Role {
             Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Drunk
             | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Bombardier
-            | DoppelGanger | PlagueDoctor | Wretch => Alignment::Good,
+            | DoppelGanger | PlagueDoctor | Witness | Wretch => Alignment::Good,
             Baa | Counsellor | Lilis | Minion | Poisoner | Pooka | Puppet | Puppeteer
             | TwinMinion | Witch => Alignment::Evil,
         }
@@ -134,7 +137,7 @@ impl Role {
             Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Empress
             | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight
             | Knitter | Lover | Medium | Oracle | Poet | Puppet | Scout | Slayer | Bombardier
-            | DoppelGanger | PlagueDoctor | Wretch => false,
+            | DoppelGanger | PlagueDoctor | Witness | Wretch => false,
             Baa | Counsellor | Drunk | Lilis | Minion | Poisoner | Pooka | Puppeteer
             | TwinMinion | Witch => true,
         }
@@ -444,7 +447,8 @@ impl Role {
             | Role::Puppeteer
             | Role::TwinMinion
             | Role::Witch
-            | Role::Counsellor => Err(format!(
+            | Role::Counsellor
+            | Role::Witness => Err(format!(
                 "No statement parsing implemented for {:?}",
                 self
             )),
