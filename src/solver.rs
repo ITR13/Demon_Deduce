@@ -77,7 +77,7 @@ pub fn brute_force_solve(
                             let villagers_in_play: Vec<_> = combined
                                 .iter()
                                 .copied()
-                                .filter(|r| r.group() == Group::Villager && !v_combo.contains(r))
+                                .filter(|r| r.group() == Group::Villager)
                                 .collect();
 
                             // Prepare role counts for multiset permutation generation
@@ -230,8 +230,7 @@ pub fn validate_candidate(
         ));
     }
 
-    // 4. Check spatial constraints
-    // Counsellor constraint
+    // 4. Check spatial constraints (counsellor & puppet/puppeteer)
     if let Some(counsellor_index) = candidate.iter().position(|&r| r == Role::Counsellor) {
         let left_neighbor = if counsellor_index == 0 {
             n - 1
@@ -243,7 +242,6 @@ pub fn validate_candidate(
         } else {
             counsellor_index + 1
         };
-
         if candidate[left_neighbor].group() != Group::Outcast
             && candidate[right_neighbor].group() != Group::Outcast
         {
@@ -251,7 +249,7 @@ pub fn validate_candidate(
         }
     }
 
-    // Puppet/Puppeteer constraints
+    // 5. Puppet/Puppeteer constraints
     let has_puppet = candidate.iter().any(|&r| r == Role::Puppet);
     let has_puppeteer = candidate.iter().any(|&r| r == Role::Puppeteer);
 
@@ -269,7 +267,6 @@ pub fn validate_candidate(
             } else {
                 puppeteer_idx + 1
             };
-
             if candidate[left].group() == Group::Villager
                 || candidate[right].group() == Group::Villager
             {
@@ -283,12 +280,10 @@ pub fn validate_candidate(
             .iter()
             .position(|&r| r == Role::Puppeteer)
             .unwrap();
-
         let adjacent = (puppet_idx + 1) % n == puppeteer_idx
             || (puppeteer_idx + 1) % n == puppet_idx
             || (puppet_idx == 0 && puppeteer_idx == n - 1)
             || (puppeteer_idx == 0 && puppet_idx == n - 1);
-
         if !adjacent {
             rejection_reasons.push("Puppet and Puppeteer are not adjacent".to_string());
         }
@@ -297,8 +292,6 @@ pub fn validate_candidate(
     if !rejection_reasons.is_empty() {
         return Err(rejection_reasons);
     }
-
-    // ... rest of the function remains the same
     let deck_minions: Vec<Role> = deck
         .iter()
         .copied()
@@ -336,25 +329,26 @@ pub fn validate_candidate(
         .zip(disguise_choices.iter())
         .enumerate()
     {
-        let Some(role) = visible_role else { continue };
-        if disguises.contains(role) {
-            continue;
-        };
-
-        let valid_disguises = disguises
-            .iter()
-            .map(|r| r.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        rejection_reasons.push(format!(
-            "Visible role '{}' at index {} is not one of the valid disguises: [{}]",
-            role, i, valid_disguises
-        ));
+        if let Some(role) = visible_role {
+            if !disguises.contains(role) {
+                let valid_disguises = disguises
+                    .iter()
+                    .map(|r| r.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                rejection_reasons.push(format!(
+                    "Visible role '{}' at index {} is not one of the valid disguises for {}: [{}]",
+                    role, i, candidate[i], valid_disguises
+                ));
+            }
+        }
     }
-    if rejection_reasons.len() > 0 {
+
+    if !rejection_reasons.is_empty() {
         return Err(rejection_reasons);
     }
 
+    // 7. Check statements through all possible Wretch + disguise assignments
     let mut found_valid = false;
     let mut wretch_assign = Vec::with_capacity(n);
     let mut disguise_assign = Vec::with_capacity(n);
@@ -376,11 +370,11 @@ pub fn validate_candidate(
             ) {
                 Ok(_) => {
                     found_valid = true;
-                    true // Stop searching if we find a valid configuration
+                    true // stop searching
                 }
                 Err(reasons) => {
                     rejection_reasons.extend(reasons);
-                    false // Continue searching
+                    false // continue searching
                 }
             }
         },
@@ -389,7 +383,7 @@ pub fn validate_candidate(
     if found_valid {
         Ok(())
     } else {
-        rejection_reasons.dedup(); // Remove duplicate reasons
+        rejection_reasons.dedup();
         Err(rejection_reasons)
     }
 }
@@ -443,8 +437,8 @@ fn check_statements(
                     .join(", ");
 
                 rejection_reasons.push(format!(
-                    "Seat {}: Role {} (visible as {}) cannot produce statement {} for placement {}",
-                    idx, true_role, vis_role, obs, candidate_str
+                    "Seat {}: Role {} (visible as {}, lying: {}) cannot produce statement {} for placement {}",
+                    idx, true_role, vis_role, lying, obs, candidate_str
                 ));
                 continue 'corruption_loop;
             }
@@ -802,9 +796,9 @@ fn statements_match(
                         .join(", ");
 
                     eprintln!(
-                        "Invalid candidate: [{}]\nStatement {} didn't match for role {} (visible as {})",
+                        "Invalid candidate: [{}]\nStatement {} didn't match for role {} (visible as {}, lying: {})",
                         candidate_str,
-                        obs, true_role, vis_role
+                        obs, true_role, vis_role, lying
                     );
                 }
                 continue 'corruption_loop;
