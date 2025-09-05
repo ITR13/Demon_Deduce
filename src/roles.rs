@@ -14,6 +14,7 @@ pub enum Role {
     Baker,
     #[strum(serialize = "bard", serialize = "athlete")]
     Bard,
+    Bishop,
     Confessor,
     Dreamer,
     Druid,
@@ -108,9 +109,9 @@ impl Role {
     pub const fn group(self) -> Group {
         use Role::*;
         match self {
-            Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Empress
-            | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight
-            | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Witness => {
+            Alchemist | Architect | Baker | Bard | Bishop | Confessor | Dreamer | Druid
+            | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
+            | Knight | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Witness => {
                 Group::Villager
             }
             Bombardier | DoppelGanger | PlagueDoctor | Wretch | Drunk => Group::Outcast,
@@ -123,7 +124,7 @@ impl Role {
     pub const fn alignment(self) -> Alignment {
         use Role::*;
         match self {
-            Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Drunk
+            Alchemist | Architect | Baker | Bard | Bishop | Confessor | Dreamer | Druid | Drunk
             | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Bombardier
             | DoppelGanger | PlagueDoctor | Witness | Wretch => Alignment::Good,
@@ -134,10 +135,10 @@ impl Role {
     pub const fn lying(self) -> bool {
         use Role::*;
         match self {
-            Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Empress
-            | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight
-            | Knitter | Lover | Medium | Oracle | Poet | Puppet | Scout | Slayer | Bombardier
-            | DoppelGanger | PlagueDoctor | Witness | Wretch => false,
+            Alchemist | Architect | Baker | Bard | Bishop | Confessor | Dreamer | Druid
+            | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
+            | Knight | Knitter | Lover | Medium | Oracle | Poet | Puppet | Scout | Slayer
+            | Bombardier | DoppelGanger | PlagueDoctor | Witness | Wretch => false,
             Baa | Counsellor | Drunk | Lilis | Minion | Poisoner | Pooka | Puppeteer
             | TwinMinion | Witch => true,
         }
@@ -187,6 +188,10 @@ impl Role {
                     })?)
                 };
                 Ok(BardStatement { distance }.into())
+            }
+            Role::Bishop => {
+                let target_indexes = parse_indexes(s)?;
+                Ok(BishopStatement { target_indexes }.into())
             }
             Role::Confessor => match s.trim() {
                 "iamgood" => Ok(ConfessorStatement::IAmGood.into()),
@@ -506,6 +511,42 @@ impl Role {
                     Ok(BardStatement { distance: None }.into())
                 } else {
                     Err(format!("invalid bard statement '{}' - expected format like 'i am 2 cards away from corrupted' or 'none'", s))
+                }
+            }
+            Role::Bishop => {
+                if let Some(caps) = regex::Regex::new(r"#(\d+)[^#]+#(\d+)[^#]+(\d+)?")
+                    .unwrap()
+                    .captures(s)
+                {
+                    let mut target_indexes = Vec::new();
+                    for i in 1..=3 {
+                        if let Some(m) = caps.get(i) {
+                            let idx = m.as_str().parse::<usize>().map_err(|_| {
+                                format!("Invalid index in Bishop statement '{}'", s)
+                            })?;
+                            target_indexes.push(idx - 1);
+                        }
+                    }
+                    if target_indexes.is_empty() {
+                        return Err(format!(
+                            "No valid indexes found in Bishop statement '{}'",
+                            s
+                        ));
+                    }
+                    let mut bits = TargetIndexes::default();
+                    for idx in target_indexes {
+                        bits.set(idx, true);
+                    }
+
+                    Ok(BishopStatement {
+                        target_indexes: bits,
+                    }
+                    .into())
+                } else {
+                    Err(format!(
+                        "Invalid Bishop statement '{}' - expected format like #8 #1 #7'",
+                        s
+                    ))
                 }
             }
             Role::Confessor => {
@@ -976,6 +1017,7 @@ role_statements! {
     Alchemist(AlchemistStatement),
     Architect(ArchitectStatement),
     Bard(BardStatement),
+    Bishop(BishopStatement),
     Confessor(ConfessorStatement),
     Druid(DruidStatement),
     Dreamer(DreamerStatement),
@@ -1039,6 +1081,25 @@ impl fmt::Display for BardStatement {
             ),
             None => write!(f, "There are no Corrupted characters"),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BishopStatement {
+    pub target_indexes: TargetIndexes,
+}
+
+impl fmt::Display for BishopStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Among {} there is 1 villager, 1 minion, and maybe 1 outcast",
+            self.target_indexes
+                .iter_ones()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 
@@ -1456,6 +1517,15 @@ pub fn can_produce_statement(
                     false
                 }
             }
+            Role::Bishop => {
+                if let RoleStatement::Bishop(BishopStatement { target_indexes }) = statement {
+                    target_indexes
+                        .iter_ones()
+                        .all(|i| true_roles[i].group() == Group::Villager)
+                } else {
+                    false
+                }
+            }
             Role::Confessor => *statement == RoleStatement::Confessor(ConfessorStatement::IAmDizzy),
             Role::Dreamer => {
                 if let RoleStatement::Dreamer(DreamerStatement { target_index, role }) = statement {
@@ -1676,6 +1746,30 @@ pub fn can_produce_statement(
                 let closest_distance = closest_corrupt_distance(corruptions, position);
                 if let RoleStatement::Bard(BardStatement { distance }) = statement {
                     *distance == closest_distance
+                } else {
+                    false
+                }
+            }
+            Role::Bishop => {
+                if let RoleStatement::Bishop(BishopStatement { target_indexes }) = statement {
+                    let mut villager_count = 0;
+                    let mut minion_count = 0;
+                    let mut outcast_count = 0;
+                    let mut other_count = 0;
+
+                    for i in target_indexes.iter_ones() {
+                        match true_roles[i].group() {
+                            Group::Villager => villager_count += 1,
+                            Group::Minion => minion_count += 1,
+                            Group::Outcast => outcast_count += 1,
+                            _ => other_count += 1,
+                        }
+                    }
+
+                    villager_count == 1
+                        && minion_count == 1
+                        && outcast_count <= 1
+                        && other_count == 0
                 } else {
                     false
                 }

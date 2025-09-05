@@ -37,6 +37,7 @@ The format for this is:
 - ✅ Architect
 - 🟡 Baker
 - ✅ Bard
+- ✅ Bishop
 - ✅ Confessor
 - ✅ Dreamer
 - ✅ Druid
@@ -56,7 +57,6 @@ The format for this is:
 - ✅ Scout
 - ✅ Slayer
 - 🟡 Witness
-- ❌ Bishop
 
 ### Outcasts:
 - ✅ Bombardier
