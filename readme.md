@@ -68,16 +68,16 @@ The format for this is:
 ### Minions:
 - ✅ Minion
 - ✅ Poisoner
+- ✅ Puppeteer/Puppet
 - ✅ TwinMinion
 - ✅ Witch
 - ✅ Counsellor
-- ❌ Puppeteer/Puppet
 - ❌ Shaman
 
 ### Demons:
 - ✅ Baa
 - ✅ Pooka
-- ❌ Lilis
+- ✅ Lilis
 
 ## How It Works
 

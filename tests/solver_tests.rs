@@ -818,3 +818,194 @@ fn test_scout_2() {
         solutions
     );
 }
+
+
+#[test]
+fn test_puppet() {
+    let deck = vec![
+        Role::Puppet,
+        Role::Puppeteer,
+        Role::Lover,
+        Role::Confessor,
+        Role::PlagueDoctor,
+    ];
+
+    let visible = vec![
+        Some(Role::Lover),
+        Some(Role::Confessor),
+        Some(Role::PlagueDoctor),
+    ];
+    let confirmed = vec![None; visible.len()];
+
+    let observed: Vec<RoleStatement> = vec![
+        LoverStatement {
+            evil_count: 1
+        }
+        .into(),
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 1, 0, 2, 0, false);
+    for solution in &solutions {
+        assert!(
+            !is_evil(&solution[1]),
+            "Unmatching solution found. Solutions: {:#?}",
+            solutions
+        );
+    }
+
+    assert!(
+        !solutions.is_empty(),
+        "No matching solution found. Solutions: {:#?}",
+        solutions
+    );
+
+    assert!(
+        solutions.len() == 1,
+        "More than 1 solution found. Solutions: {:#?}",
+        solutions
+    );
+}
+
+#[test]
+fn test_puppet_in_deck_but_not_in_play() {
+    let deck = vec![
+        Role::Puppet,
+        Role::Puppeteer,
+        Role::Lover,
+        Role::Confessor,
+        Role::PlagueDoctor,
+    ];
+
+    let visible = vec![
+        Some(Role::Lover),
+        Some(Role::Confessor),
+        Some(Role::PlagueDoctor),
+    ];
+    let confirmed = vec![None; visible.len()];
+
+    let observed: Vec<RoleStatement> = vec![
+        LoverStatement { evil_count: 1 }.into(),
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
+
+    assert!(solutions.is_empty(), "If puppet is in deck, all solutions should have a puppet");
+}
+
+#[test]
+fn test_puppeteer_without_puppet_not_adjacent_to_villagers() {
+    let deck = vec![
+        Role::Minion,
+        Role::Puppeteer,
+        Role::Lover,
+        Role::Confessor,
+        Role::PlagueDoctor,
+    ];
+
+    let visible = vec![
+        Some(Role::Lover),
+        Some(Role::Lover),
+        Some(Role::Confessor),
+        Some(Role::PlagueDoctor),
+    ];
+    let confirmed = vec![None; visible.len()];
+
+    let observed: Vec<RoleStatement> = vec![
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 1, 1, 2, 0, false);
+
+    assert!(!solutions.is_empty(), "No solutions found for puppeteer without puppet");
+
+    for solution in &solutions {
+        let puppeteer_pos = solution.iter().position(|&r| r == Role::Puppeteer).unwrap();
+        let n = solution.len();
+
+        // Check neighbors are not villagers
+        let left_neighbor = if puppeteer_pos == 0 { n - 1 } else { puppeteer_pos - 1 };
+        let right_neighbor = if puppeteer_pos == n - 1 { 0 } else { puppeteer_pos + 1 };
+
+        assert_ne!(solution[left_neighbor].group(), Group::Villager,
+            "Puppeteer adjacent to villager on left: {:?}", solution);
+        assert_ne!(solution[right_neighbor].group(), Group::Villager,
+            "Puppeteer adjacent to villager on right: {:?}", solution);
+
+        assert!(solution[1] == Role::Minion,
+            "Minion not in center: {:?}", solution);
+    }
+}
+
+#[test]
+fn test_puppet_without_puppeteer_rejected() {
+    let deck = vec![
+        Role::Puppet,
+        Role::Lover,
+        Role::Confessor,
+    ];
+
+    let visible = vec![
+        Some(Role::Lover),
+        Some(Role::Lover),
+        Some(Role::Confessor),
+    ];
+    let confirmed = vec![None; visible.len()];
+
+    let observed: Vec<RoleStatement> = vec![
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 2, 0, 1, 0, false);
+    // Should have no solutions since puppet requires puppeteer
+    assert!(solutions.is_empty(), "Found solutions for puppet without puppeteer: {:?}", solutions);
+}
+
+
+#[test]
+fn test_puppeteer_adjacent_to_puppet() {
+    let deck = vec![
+        Role::Puppeteer,
+        Role::Puppet,
+        Role::Lover,
+        Role::Confessor,
+        Role::PlagueDoctor,
+    ];
+
+    let visible = vec![
+        Some(Role::Lover),
+        Some(Role::Lover),
+        Some(Role::Confessor),
+        Some(Role::PlagueDoctor),
+    ];
+    let confirmed = vec![None; visible.len()];
+
+    let observed: Vec<RoleStatement> = vec![
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+        RoleStatement::NoStatement,
+    ];
+
+    let solutions = brute_force_solve(&deck, &visible, &confirmed, &observed, 1, 1, 2, 0, false);
+
+    assert!(!solutions.is_empty(), "No solutions found for puppeteer with puppet");
+
+    for solution in &solutions {
+        let puppeteer_pos = solution.iter().position(|&r| r == Role::Puppeteer).unwrap();
+        let n = solution.len();
+
+        let left_neighbor = if puppeteer_pos == 0 { n - 1 } else { puppeteer_pos - 1 };
+        let right_neighbor = if puppeteer_pos == n - 1 { 0 } else { puppeteer_pos + 1 };
+
+        assert!(solution[left_neighbor] == Role::Puppet || solution[right_neighbor] == Role::Puppet, "Puppet not next to puppeteer: {:?}", solution);
+    }
+}

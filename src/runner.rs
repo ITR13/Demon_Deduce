@@ -219,7 +219,10 @@ pub fn run_args(args: Vec<String>) {
     if validate_mode {
         match candidate {
             Some(candidate) => {
-                match validate_candidate(&candidate, &deck, &visible, &confirmed, &observed) {
+                match validate_candidate(
+                    &candidate, &deck, &visible, &confirmed, &observed, villagers, outcasts,
+                    minions, demons,
+                ) {
                     Ok(_) => println!("{}", "Candidate is valid!".green()),
                     Err(reasons) => {
                         println!("{}", "Candidate is invalid:".red());

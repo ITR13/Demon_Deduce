@@ -58,6 +58,10 @@ pub enum Role {
     Counsellor,
     Minion,
     Poisoner,
+    #[strum(serialize = "puppet", serialize = "marionette")]
+    Puppet,
+    #[strum(serialize = "puppeteer", serialize = "mezepheles")]
+    Puppeteer,
     #[strum(
         serialize = "twinminion",
         serialize = "twin minion",
@@ -68,6 +72,8 @@ pub enum Role {
     // Demon
     #[strum(serialize = "baa", serialize = "imp")]
     Baa,
+    #[strum(serialize = "lilis", serialize = "lillith")]
+    Lilis,
     Pooka,
 }
 
@@ -105,8 +111,10 @@ impl Role {
             | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight
             | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer => Group::Villager,
             Bombardier | DoppelGanger | PlagueDoctor | Wretch | Drunk => Group::Outcast,
-            Counsellor | Minion | Poisoner | TwinMinion | Witch => Group::Minion,
-            Baa | Pooka => Group::Demon,
+            Counsellor | Minion | Poisoner | Puppet | Puppeteer | TwinMinion | Witch => {
+                Group::Minion
+            }
+            Baa | Lilis | Pooka => Group::Demon,
         }
     }
     pub const fn alignment(self) -> Alignment {
@@ -116,7 +124,8 @@ impl Role {
             | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Bombardier
             | DoppelGanger | PlagueDoctor | Wretch => Alignment::Good,
-            Baa | Counsellor | Minion | Poisoner | Pooka | TwinMinion | Witch => Alignment::Evil,
+            Baa | Counsellor | Lilis | Minion | Poisoner | Pooka | Puppet | Puppeteer
+            | TwinMinion | Witch => Alignment::Evil,
         }
     }
     pub const fn lying(self) -> bool {
@@ -124,9 +133,10 @@ impl Role {
         match self {
             Alchemist | Architect | Baker | Bard | Confessor | Dreamer | Druid | Empress
             | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge | Knight
-            | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Bombardier
+            | Knitter | Lover | Medium | Oracle | Poet | Puppet | Scout | Slayer | Bombardier
             | DoppelGanger | PlagueDoctor | Wretch => false,
-            Baa | Counsellor | Drunk | Minion | Poisoner | Pooka | TwinMinion | Witch => true,
+            Baa | Counsellor | Drunk | Lilis | Minion | Poisoner | Pooka | Puppeteer
+            | TwinMinion | Witch => true,
         }
     }
     pub fn parse_statement(&self, s: &str) -> Result<RoleStatement, String> {
@@ -426,11 +436,14 @@ impl Role {
             | Role::Drunk
             | Role::Wretch
             | Role::Baa
+            | Role::Lilis
             | Role::Minion
             | Role::Poisoner
+            | Role::Pooka
+            | Role::Puppet
+            | Role::Puppeteer
             | Role::TwinMinion
             | Role::Witch
-            | Role::Pooka
             | Role::Counsellor => Err(format!(
                 "No statement parsing implemented for {:?}",
                 self

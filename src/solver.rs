@@ -20,6 +20,7 @@ pub fn brute_force_solve(
         "visible_roles and observed_statements must match"
     );
     let n = visible_roles.len();
+    let has_puppet = deck.iter().any(|&r| r == Role::Puppet);
 
     // Pre-generate all possible role group combinations based on counts requested
     let (villager_combos, outcast_combos, minion_combos, demon_combos) =
@@ -69,7 +70,7 @@ pub fn brute_force_solve(
                             m_combo,
                             d_combo,
                             &outcasts_not_in_play,
-                            has_counsellor,
+                            has_counsellor
                         );
 
                         for combined in combined_variations {
@@ -94,6 +95,7 @@ pub fn brute_force_solve(
                                 &mut perm_current,
                                 n,
                                 has_counsellor,
+                                has_puppet,
                                 &mut |candidate: &[Role]| {
                                     // Immediately discard if known confirmed roles don’t match
                                     if !confirmed_roles_ok(candidate, confirmed_roles) {
@@ -110,28 +112,28 @@ pub fn brute_force_solve(
                                     );
                                     // DFS through every possible Wretch assignment + disguise mapping
                                     assign_disguises_and_check(
-                                candidate,
-                                &wretch_choices,
-                                &disguise_choices,
-                                visible_roles,
-                                &mut wretch_assign,
-                                &mut disguise_assign,
-                                0,
-                                &mut |full_wretch_assign: &[Role], full_disguise_assign: &[Role]| {
-                                    // If the resulting seating matches all observed statements, keep it
-                                    let success = statements_match(
                                         candidate,
-                                        full_wretch_assign,
-                                        full_disguise_assign,
-                                        observed_statements,
-                                        verbose
+                                        &wretch_choices,
+                                        &disguise_choices,
+                                        visible_roles,
+                                        &mut wretch_assign,
+                                        &mut disguise_assign,
+                                        0,
+                                        &mut |full_wretch_assign: &[Role], full_disguise_assign: &[Role]| {
+                                            // If the resulting seating matches all observed statements, keep it
+                                            let success = statements_match(
+                                                candidate,
+                                                full_wretch_assign,
+                                                full_disguise_assign,
+                                                observed_statements,
+                                                verbose
+                                            );
+                                            if success {
+                                                local_valid.push(candidate.to_vec());
+                                            }
+                                            success
+                                        },
                                     );
-                                    if success {
-                                        local_valid.push(candidate.to_vec());
-                                    }
-                                    success
-                                },
-                            );
                                 },
                             );
                         }
@@ -150,15 +152,153 @@ pub fn validate_candidate(
     visible_roles: &[Option<Role>],
     confirmed_roles: &[Option<Role>],
     observed_statements: &[RoleStatement],
+    villagers: usize,
+    outcasts: usize,
+    minions: usize,
+    demons: usize,
 ) -> Result<(), Vec<String>> {
     let mut rejection_reasons = Vec::new();
     let n = candidate.len();
 
+    // 1. Check confirmed roles first
     if !confirmed_roles_ok(candidate, confirmed_roles) {
         rejection_reasons.push("Candidate doesn't match confirmed roles".to_string());
         return Err(rejection_reasons);
     }
 
+    // 2. Check that all roles in candidate exist in the deck
+    let mut deck_counts: HashMap<Role, usize> = HashMap::new();
+    for &role in deck {
+        *deck_counts.entry(role).or_insert(0) += 1;
+    }
+
+    let mut candidate_counts: HashMap<Role, usize> = HashMap::new();
+    for &role in candidate {
+        *candidate_counts.entry(role).or_insert(0) += 1;
+    }
+
+    for (role, &count_in_candidate) in &candidate_counts {
+        let count_in_deck = deck_counts.get(role).copied().unwrap_or(0);
+        if count_in_candidate > count_in_deck {
+            rejection_reasons.push(format!(
+                "Role {} appears {} times in candidate but only {} times in deck",
+                role, count_in_candidate, count_in_deck
+            ));
+        }
+    }
+
+    // 3. Check role counts match the requested composition
+    let actual_villagers = candidate
+        .iter()
+        .filter(|r| r.group() == Group::Villager)
+        .count();
+    let actual_outcasts = candidate
+        .iter()
+        .filter(|r| r.group() == Group::Outcast)
+        .count();
+    let actual_minions = candidate
+        .iter()
+        .filter(|r| r.group() == Group::Minion)
+        .count();
+    let actual_demons = candidate
+        .iter()
+        .filter(|r| r.group() == Group::Demon)
+        .count();
+
+    if actual_villagers != villagers {
+        rejection_reasons.push(format!(
+            "Expected {} villagers, found {}",
+            villagers, actual_villagers
+        ));
+    }
+    if actual_outcasts != outcasts {
+        rejection_reasons.push(format!(
+            "Expected {} outcasts, found {}",
+            outcasts, actual_outcasts
+        ));
+    }
+    if actual_minions != minions {
+        rejection_reasons.push(format!(
+            "Expected {} minions, found {}",
+            minions, actual_minions
+        ));
+    }
+    if actual_demons != demons {
+        rejection_reasons.push(format!(
+            "Expected {} demons, found {}",
+            demons, actual_demons
+        ));
+    }
+
+    // 4. Check spatial constraints
+    // Counsellor constraint
+    if let Some(counsellor_index) = candidate.iter().position(|&r| r == Role::Counsellor) {
+        let left_neighbor = if counsellor_index == 0 {
+            n - 1
+        } else {
+            counsellor_index - 1
+        };
+        let right_neighbor = if counsellor_index == n - 1 {
+            0
+        } else {
+            counsellor_index + 1
+        };
+
+        if candidate[left_neighbor].group() != Group::Outcast
+            && candidate[right_neighbor].group() != Group::Outcast
+        {
+            rejection_reasons.push("Counsellor is not adjacent to an outcast".to_string());
+        }
+    }
+
+    // Puppet/Puppeteer constraints
+    let has_puppet = candidate.iter().any(|&r| r == Role::Puppet);
+    let has_puppeteer = candidate.iter().any(|&r| r == Role::Puppeteer);
+
+    if has_puppet && !has_puppeteer {
+        rejection_reasons.push("Puppet present without Puppeteer".to_string());
+    } else if !has_puppet && has_puppeteer {
+        if let Some(puppeteer_idx) = candidate.iter().position(|&r| r == Role::Puppeteer) {
+            let left = if puppeteer_idx == 0 {
+                n - 1
+            } else {
+                puppeteer_idx - 1
+            };
+            let right = if puppeteer_idx == n - 1 {
+                0
+            } else {
+                puppeteer_idx + 1
+            };
+
+            if candidate[left].group() == Group::Villager
+                || candidate[right].group() == Group::Villager
+            {
+                rejection_reasons
+                    .push("Puppeteer without Puppet is adjacent to a villager".to_string());
+            }
+        }
+    } else if has_puppet && has_puppeteer {
+        let puppet_idx = candidate.iter().position(|&r| r == Role::Puppet).unwrap();
+        let puppeteer_idx = candidate
+            .iter()
+            .position(|&r| r == Role::Puppeteer)
+            .unwrap();
+
+        let adjacent = (puppet_idx + 1) % n == puppeteer_idx
+            || (puppeteer_idx + 1) % n == puppet_idx
+            || (puppet_idx == 0 && puppeteer_idx == n - 1)
+            || (puppeteer_idx == 0 && puppet_idx == n - 1);
+
+        if !adjacent {
+            rejection_reasons.push("Puppet and Puppeteer are not adjacent".to_string());
+        }
+    }
+
+    if !rejection_reasons.is_empty() {
+        return Err(rejection_reasons);
+    }
+
+    // ... rest of the function remains the same
     let deck_minions: Vec<Role> = deck
         .iter()
         .copied()
@@ -337,7 +477,7 @@ fn build_choices(
 
         // Disguise choices
         let group = r.group();
-        let choices = if group == Group::Demon || r == Role::Drunk {
+        let choices = if group == Group::Demon || r == Role::Drunk || r == Role::Puppet {
             deck_villager_not_in_play.to_vec()
         } else if group == Group::Minion {
             deck_non_evil.to_vec()
@@ -456,14 +596,15 @@ fn permute_multiset<F>(
     current: &mut Vec<Role>,
     target_len: usize,
     has_counsellor: bool,
+    has_puppet: bool,
     process: &mut F,
 ) where
     F: FnMut(&[Role]),
 {
     if current.len() == target_len {
         // This can be optimized by checking for it earlier in the run
+        let len = current.len();
         if let Some(counsellor_pos) = current.iter().position(|&r| r == Role::Counsellor) {
-            let len = current.len();
             let left_pos = if counsellor_pos == 0 {
                 len - 1
             } else {
@@ -482,6 +623,43 @@ fn permute_multiset<F>(
                 return;
             }
         }
+        if has_puppet {
+            if let Some((puppet_pos, puppeteer_pos)) = current
+                .iter()
+                .position(|&r| r == Role::Puppet)
+                .zip(current.iter().position(|&r| r == Role::Puppeteer))
+            {
+                // Puppet must be next to puppeteer
+                if (puppet_pos + 1) % len != puppeteer_pos
+                    && (puppeteer_pos + 1) % len != puppet_pos
+                {
+                    return;
+                }
+            } else {
+                // If there's a puppet, there must be both a puppet and a puppeteer
+                return;
+            }
+        } else if let Some(puppeteer_pos) = current.iter().position(|&r| r == Role::Puppeteer) {
+            let len = current.len();
+            let left_pos = if puppeteer_pos == 0 {
+                len - 1
+            } else {
+                puppeteer_pos - 1
+            };
+            let right_pos = if puppeteer_pos == len - 1 {
+                0
+            } else {
+                puppeteer_pos + 1
+            };
+
+            let has_adjacent_villager = current[left_pos].group() == Group::Villager
+                || current[right_pos].group() == Group::Villager;
+
+            // If there's no puppet, then puppeteer can't be next to a villager
+            if has_adjacent_villager {
+                return;
+            }
+        }
 
         process(current.as_slice());
         return;
@@ -497,7 +675,15 @@ fn permute_multiset<F>(
         counts.insert(k, cnt - 1);
         current.push(k);
 
-        permute_multiset(counts, keys, current, target_len, has_counsellor, process);
+        permute_multiset(
+            counts,
+            keys,
+            current,
+            target_len,
+            has_counsellor,
+            has_puppet,
+            process,
+        );
         // Restore state after exploring this branch
         current.pop();
         counts.insert(k, cnt);
