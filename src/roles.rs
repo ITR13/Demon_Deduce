@@ -64,6 +64,7 @@ pub enum Role {
     Puppet,
     #[strum(serialize = "puppeteer", serialize = "mezepheles")]
     Puppeteer,
+    Shaman,
     #[strum(
         serialize = "twinminion",
         serialize = "twin minion",
@@ -115,7 +116,7 @@ impl Role {
                 Group::Villager
             }
             Bombardier | DoppelGanger | PlagueDoctor | Wretch | Drunk => Group::Outcast,
-            Counsellor | Minion | Poisoner | Puppet | Puppeteer | TwinMinion | Witch => {
+            Counsellor | Minion | Poisoner | Puppet | Puppeteer | Shaman | TwinMinion | Witch => {
                 Group::Minion
             }
             Baa | Lilis | Pooka => Group::Demon,
@@ -128,7 +129,7 @@ impl Role {
             | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Oracle | Poet | Scout | Slayer | Bombardier
             | DoppelGanger | PlagueDoctor | Witness | Wretch => Alignment::Good,
-            Baa | Counsellor | Lilis | Minion | Poisoner | Pooka | Puppet | Puppeteer
+            Baa | Counsellor | Lilis | Minion | Poisoner | Pooka | Puppet | Puppeteer | Shaman
             | TwinMinion | Witch => Alignment::Evil,
         }
     }
@@ -139,7 +140,7 @@ impl Role {
             | Empress | Enlightened | FortuneTeller | Gemcrafter | Hunter | Jester | Judge
             | Knight | Knitter | Lover | Medium | Oracle | Poet | Puppet | Scout | Slayer
             | Bombardier | DoppelGanger | PlagueDoctor | Witness | Wretch => false,
-            Baa | Counsellor | Drunk | Lilis | Minion | Poisoner | Pooka | Puppeteer
+            Baa | Counsellor | Drunk | Lilis | Minion | Poisoner | Pooka | Puppeteer | Shaman
             | TwinMinion | Witch => true,
         }
     }
@@ -450,6 +451,7 @@ impl Role {
             | Role::Pooka
             | Role::Puppet
             | Role::Puppeteer
+            | Role::Shaman
             | Role::TwinMinion
             | Role::Witch
             | Role::Counsellor
@@ -964,7 +966,11 @@ impl Role {
                         )
                     })?;
 
-                    Ok(DreamerStatement { target_index: target_index - 1, role }.into())
+                    Ok(DreamerStatement {
+                        target_index: target_index - 1,
+                        role,
+                    }
+                    .into())
                 } else {
                     Err(format!("Invalid Oracle statement '{}'", s))
                 }

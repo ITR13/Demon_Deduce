@@ -63,6 +63,7 @@ pub fn brute_force_solve(
                     .collect();
                 for m_combo in &minion_combos {
                     let has_counsellor = m_combo.iter().any(|&r| r == Role::Counsellor);
+                    let has_shaman = m_combo.iter().any(|&r| r == Role::Shaman);
                     for d_combo in &demon_combos {
                         let combined_variations = generate_role_variations(
                             v_combo,
@@ -70,7 +71,8 @@ pub fn brute_force_solve(
                             m_combo,
                             d_combo,
                             &outcasts_not_in_play,
-                            has_counsellor
+                            has_counsellor,
+                            has_shaman
                         );
 
                         for combined in combined_variations {
@@ -177,14 +179,31 @@ pub fn validate_candidate(
         *candidate_counts.entry(role).or_insert(0) += 1;
     }
 
+    let has_shaman = candidate.iter().any(|&r| r == Role::Shaman);
+    let mut has_duplicate = false;
     for (role, &count_in_candidate) in &candidate_counts {
         let count_in_deck = deck_counts.get(role).copied().unwrap_or(0);
         if count_in_candidate > count_in_deck {
+            if has_shaman {
+                if has_duplicate {
+                    rejection_reasons.push(format!(
+                        "Role {} appears {} times in candidate but only {} times in deck (a shaman duplicate was already found)",
+                        role, count_in_candidate, count_in_deck
+                    ));
+                }
+                has_duplicate = true;
+                continue;
+            }
+
             rejection_reasons.push(format!(
                 "Role {} appears {} times in candidate but only {} times in deck",
                 role, count_in_candidate, count_in_deck
             ));
         }
+    }
+
+    if has_shaman && !has_duplicate {
+        rejection_reasons.push(format!("Game has shaman, but no duplicate was found"));
     }
 
     // 3. Check role counts match the requested composition
@@ -494,40 +513,81 @@ fn generate_role_variations(
     d_combo: &[Role],
     outcasts_not_in_play: &[Role],
     has_counsellor: bool,
+    has_shaman: bool,
 ) -> Vec<Vec<Role>> {
-    let mut combinations = Vec::new();
+    let mut combinations: Vec<Vec<Role>> = Vec::new();
 
-    if !has_counsellor {
-        let base_combination: Vec<Role> = v_combo
-            .iter()
-            .chain(o_combo.iter())
-            .chain(m_combo.iter())
-            .chain(d_combo.iter())
-            .copied()
-            .collect();
-        combinations.push(base_combination);
+    // If there's a counsellor: create all variations where a Villager in v_combo
+    // is replaced by an outcast that was not in play.
+    if has_counsellor {
+        for (i, &role) in v_combo.iter().enumerate() {
+            for &outcast in outcasts_not_in_play {
+                // modified v_combo: villager at i becomes the outcast
+                let mut modified_v_combo = v_combo.to_vec();
+                let original_villager = modified_v_combo[i];
+                modified_v_combo[i] = outcast;
+
+                // modified o_combo: push the original villager into o_combo
+                // (you said v_combo and o_combo must be updated when recursing)
+                let mut modified_o_combo = o_combo.to_vec();
+                modified_o_combo.push(original_villager);
+
+                // Recurse with counsellor flag turned off (so we don't loop infinitely),
+                // but keep has_shaman as-is so shaman replacements can still occur.
+                let mut rec = generate_role_variations(
+                    &modified_v_combo,
+                    &modified_o_combo,
+                    m_combo,
+                    d_combo,
+                    outcasts_not_in_play,
+                    false,
+                    has_shaman,
+                );
+
+                combinations.append(&mut rec);
+            }
+        }
+
         return combinations;
     }
 
-    for (i, role) in v_combo.iter().enumerate() {
-        if role.group() == Group::Villager {
-            for outcast in outcasts_not_in_play {
-                let mut modified_v_combo = v_combo.to_vec();
-                modified_v_combo[i] = *outcast;
+    // If there's a shaman: create all variations where a Shaman in v_combo
+    // is turned into another role taken from v_combo (excluding itself).
+    if has_shaman {
+        for (i, &role) in v_combo.iter().enumerate() {
+            for &replacement in v_combo.iter() {
+                if replacement != role {
+                    let mut modified_v_combo = v_combo.to_vec();
+                    modified_v_combo[i] = replacement;
 
-                let combination: Vec<Role> = modified_v_combo
-                    .iter()
-                    .chain(o_combo.iter())
-                    .chain(m_combo.iter())
-                    .chain(d_combo.iter())
-                    .copied()
-                    .collect();
+                    // Recurse with shaman flag turned off, allow counsellor to still apply
+                    let mut rec = generate_role_variations(
+                        &modified_v_combo,
+                        o_combo,
+                        m_combo,
+                        d_combo,
+                        outcasts_not_in_play,
+                        has_counsellor,
+                        false,
+                    );
 
-                combinations.push(combination);
+                    combinations.append(&mut rec);
+                }
             }
         }
+
+        return combinations;
     }
 
+    // If neither special role is active, return just the base.
+    let base_combination: Vec<Role> = v_combo
+        .iter()
+        .chain(o_combo.iter())
+        .chain(m_combo.iter())
+        .chain(d_combo.iter())
+        .copied()
+        .collect();
+    combinations.push(base_combination);
     combinations
 }
 

@@ -66,13 +66,13 @@ The format for this is:
 - ✅ Wretch
 
 ### Minions:
+- ✅ Counsellor
 - ✅ Minion
 - ✅ Poisoner
 - ✅ Puppeteer/Puppet
+- ✅ Shaman
 - ✅ TwinMinion
 - ✅ Witch
-- ✅ Counsellor
-- ❌ Shaman
 
 ### Demons:
 - ✅ Baa
